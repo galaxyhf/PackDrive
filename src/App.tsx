@@ -3,7 +3,6 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { open } from "@tauri-apps/plugin-dialog";
-import { openPath } from "@tauri-apps/plugin-opener";
 import {
   Archive,
   ArrowLeft,
@@ -49,11 +48,13 @@ import {
   type CopyOutcome,
   type CopyProgress,
   type DestinationValidation,
+  type DirectoryChoice,
   type DirectoryItem,
   type DriveCandidate,
   type DuplicateConflict,
   type HistoryEntry,
   type PathItem,
+  type QuickDestinations,
   type Screen,
 } from "./types";
 import "./App.css";
@@ -109,6 +110,17 @@ function parentPath(path: string): string {
 function pathName(path: string): string {
   const parts = path.split(/[\\/]/).filter(Boolean);
   return parts[parts.length - 1] ?? path;
+}
+
+function isPathInside(path: string, root: string): boolean {
+  const normalize = (value: string) =>
+    value.replace(/\\/g, "/").replace(/\/+$/, "").toLocaleLowerCase();
+  const normalizedPath = normalize(path);
+  const normalizedRoot = normalize(root);
+  return (
+    normalizedPath === normalizedRoot ||
+    normalizedPath.startsWith(`${normalizedRoot}/`)
+  );
 }
 
 function StatusPill({
@@ -337,6 +349,9 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [driveValidation, setDriveValidation] =
     useState<DestinationValidation | null>(null);
+  const [driveContentPath, setDriveContentPath] = useState("");
+  const [quickDirectories, setQuickDirectories] = useState<DirectoryChoice[]>([]);
+  const [quickDirectoriesLoading, setQuickDirectoriesLoading] = useState(false);
   const [notice, setNotice] = useState<{
     type: "success" | "error" | "info";
     message: string;
@@ -348,16 +363,18 @@ function App() {
   const [currentDirectory, setCurrentDirectory] = useState("");
   const [selectedDirectory, setSelectedDirectory] = useState("");
   const [directoryItems, setDirectoryItems] = useState<DirectoryItem[]>([]);
-  const [showFiles, setShowFiles] = useState(false);
+  const [showFiles, setShowFiles] = useState(true);
   const [directoryLoading, setDirectoryLoading] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<DirectoryItem | null>(null);
+  const [deletingItem, setDeletingItem] = useState(false);
   const [folderModalOpen, setFolderModalOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
   const [historySearch, setHistorySearch] = useState("");
   const [folderExists, setFolderExists] = useState(false);
 
-  const connected = Boolean(
-    settings.drivePath && settings.defaultFolder && driveValidation?.valid,
-  );
+  const connected = Boolean(settings.drivePath && driveValidation?.valid);
+  const quickDestinationPath =
+    settings.quickDestinationPath || driveContentPath;
   const totalQuickBytes = useMemo(
     () => quickItems.reduce((sum, item) => sum + item.size, 0),
     [quickItems],
@@ -369,28 +386,55 @@ function App() {
 
   const validateConfiguredDestination = useCallback(
     async (configured: AppSettings) => {
-      if (!configured.drivePath || !configured.defaultFolder) {
+      if (!configured.drivePath) {
         setDriveValidation(null);
+        setDriveContentPath("");
+        setQuickDirectories([]);
         return;
       }
+      setQuickDirectoriesLoading(true);
       try {
+        const contentPath = await invoke<string>("resolve_drive_content_path", {
+          driveRoot: configured.drivePath,
+        });
+        const quickDestinations = await invoke<QuickDestinations>(
+          "list_quick_destinations",
+          { driveRoot: configured.drivePath },
+        );
         await invoke("list_directory", {
           allowedRoot: configured.drivePath,
-          directory: configured.defaultFolder,
+          directory: configured.drivePath,
           showFiles: false,
         });
         const result = await invoke<DestinationValidation>("validate_destination", {
-          path: configured.defaultFolder,
+          path: contentPath,
           requiredBytes: 0,
         });
+        setDriveContentPath(contentPath);
+        setQuickDirectories(quickDestinations.directories);
         setDriveValidation(result);
+        const configuredDestinationExists = quickDestinations.directories.some(
+          (directory) => directory.path === configured.quickDestinationPath,
+        );
+        const quickDestinationPath = configuredDestinationExists
+          ? configured.quickDestinationPath
+          : quickDestinations.defaultPath;
+        if (quickDestinationPath !== configured.quickDestinationPath) {
+          const next = { ...configured, quickDestinationPath };
+          setSettings(next);
+          await writeSettings(next);
+        }
       } catch (error) {
+        setDriveContentPath("");
+        setQuickDirectories([]);
         setDriveValidation({
           valid: false,
           exists: false,
           writable: false,
           message: String(error),
         });
+      } finally {
+        setQuickDirectoriesLoading(false);
       }
     },
     [],
@@ -404,18 +448,34 @@ function App() {
           readHistory(),
           invoke<DriveCandidate[]>("detect_google_drives"),
         ]);
-        setSettings(savedSettings);
+        const detectedRoot = candidates.find((candidate) =>
+          savedSettings.drivePath
+            ? isPathInside(savedSettings.drivePath, candidate.path)
+            : true,
+        );
+        const drivePath = detectedRoot?.path || savedSettings.drivePath;
+        const resolvedSettings = { ...savedSettings, drivePath };
+
+        if (drivePath !== savedSettings.drivePath) {
+          await writeSettings(resolvedSettings);
+        }
+
+        setSettings(resolvedSettings);
         setHistory(savedHistory);
         setDetected(candidates);
-        setCurrentDirectory(savedSettings.defaultFolder);
-        setSelectedDirectory(savedSettings.defaultFolder);
-        await validateConfiguredDestination(savedSettings);
-        if (!savedSettings.drivePath || !savedSettings.defaultFolder) {
+        setCurrentDirectory(drivePath);
+        setSelectedDirectory(drivePath);
+        await validateConfiguredDestination(resolvedSettings);
+        if (!drivePath) {
           setScreen("settings");
           setNotice({
             type: "info",
-            message:
-              "Confirme a localização do Google Drive e a pasta padrão para começar.",
+            message: "Não foi possível localizar o Google Drive automaticamente.",
+          });
+        } else if (detectedRoot && drivePath !== savedSettings.drivePath) {
+          setNotice({
+            type: "success",
+            message: "Google Drive localizado e configurado automaticamente.",
           });
         }
       } catch (error) {
@@ -458,19 +518,19 @@ function App() {
   }, [notice]);
 
   useEffect(() => {
-    if (!settings.defaultFolder || !atendimento) {
+    if (!quickDestinationPath || !atendimento) {
       setFolderExists(false);
       return;
     }
     const timer = window.setTimeout(() => {
-      const separator = settings.defaultFolder.includes("\\") ? "\\" : "/";
-      const target = `${settings.defaultFolder}${separator}[${atendimento}]`;
+      const separator = quickDestinationPath.includes("\\") ? "\\" : "/";
+      const target = `${quickDestinationPath}${separator}[${atendimento}]`;
       void invoke<PathItem[]>("inspect_paths", { paths: [target] }).then((items) =>
         setFolderExists(Boolean(items[0]?.exists)),
       );
     }, 250);
     return () => window.clearTimeout(timer);
-  }, [atendimento, settings.defaultFolder]);
+  }, [atendimento, quickDestinationPath]);
 
   const addPaths = useCallback(
     async (paths: string[], mode: "quick" | "manual") => {
@@ -513,6 +573,29 @@ function App() {
     await validateConfiguredDestination(next);
   }
 
+  async function openInFileManager(path: string) {
+    if (!path) return;
+    try {
+      await invoke("open_in_file_manager", { path });
+    } catch (error) {
+      setNotice({
+        type: "error",
+        message: `Não foi possível abrir a pasta: ${String(error)}`,
+      });
+    }
+  }
+
+  async function configureDriveLocation(path: string) {
+    const next = { ...settings, drivePath: path, quickDestinationPath: "" };
+    await saveSettings(next);
+    setCurrentDirectory(path);
+    setSelectedDirectory(path);
+    setNotice({
+      type: "success",
+      message: "Google Drive configurado. Você já pode navegar pelas pastas.",
+    });
+  }
+
   async function chooseDrivePath() {
     const selected = await open({
       directory: true,
@@ -520,38 +603,14 @@ function App() {
       title: "Selecione a pasta do Google Drive",
     });
     if (typeof selected === "string") {
-      await saveSettings({ ...settings, drivePath: selected, defaultFolder: "" });
-      setCurrentDirectory("");
-      setSelectedDirectory("");
+      await configureDriveLocation(selected);
     }
   }
 
-  async function chooseDefaultFolder() {
-    const selected = await open({
-      directory: true,
-      multiple: false,
-      defaultPath: settings.drivePath || undefined,
-      title: "Selecione a pasta padrão já existente",
-    });
-    if (typeof selected === "string") {
-      try {
-        await invoke("list_directory", {
-          allowedRoot: settings.drivePath,
-          directory: selected,
-          showFiles: false,
-        });
-        const next = { ...settings, defaultFolder: selected };
-        await saveSettings(next);
-        setCurrentDirectory(selected);
-        setSelectedDirectory(selected);
-        setNotice({ type: "success", message: "Pasta padrão atualizada." });
-      } catch {
-        setNotice({
-          type: "error",
-          message: "A pasta padrão precisa estar dentro do Google Drive configurado.",
-        });
-      }
-    }
+  async function selectQuickDestination(path: string) {
+    const next = { ...settings, quickDestinationPath: path };
+    setSettings(next);
+    await writeSettings(next);
   }
 
   async function runTransfer(
@@ -559,10 +618,10 @@ function App() {
     sources: PathItem[],
     destinationParent: string,
   ) {
-    if (!settings.drivePath || !settings.defaultFolder) {
+    if (!settings.drivePath) {
       setNotice({
         type: "error",
-        message: "Configure o Google Drive e a pasta padrão antes de enviar.",
+        message: "O Google Drive precisa estar conectado antes de enviar.",
       });
       setScreen("settings");
       return;
@@ -635,7 +694,9 @@ function App() {
         } else {
           setManualItems([]);
         }
-        if (settings.openAfterComplete) await openPath(outcome.destination);
+        if (settings.openAfterComplete) {
+          await openInFileManager(outcome.destination);
+        }
       } else {
         setNotice({
           type: outcome.status === "cancelled" ? "info" : "error",
@@ -676,11 +737,11 @@ function App() {
 
   const refreshDirectory = useCallback(
     async (directory = currentDirectory) => {
-      if (!settings.defaultFolder || !directory) return;
+      if (!settings.drivePath || !directory) return;
       setDirectoryLoading(true);
       try {
         const entries = await invoke<DirectoryItem[]>("list_directory", {
-          allowedRoot: settings.defaultFolder,
+          allowedRoot: settings.drivePath,
           directory,
           showFiles,
         });
@@ -691,7 +752,7 @@ function App() {
         setDirectoryLoading(false);
       }
     },
-    [currentDirectory, settings.defaultFolder, showFiles],
+    [currentDirectory, settings.drivePath, showFiles],
   );
 
   useEffect(() => {
@@ -702,7 +763,7 @@ function App() {
     if (!newFolderName.trim()) return;
     try {
       const path = await invoke<string>("create_directory", {
-        allowedRoot: settings.defaultFolder,
+        allowedRoot: settings.drivePath,
         parent: currentDirectory,
         name: newFolderName,
       });
@@ -716,19 +777,74 @@ function App() {
     }
   }
 
+  async function deleteDirectoryItem() {
+    if (!itemToDelete) return;
+    setDeletingItem(true);
+    try {
+      await invoke("delete_path", {
+        allowedRoot: settings.drivePath,
+        path: itemToDelete.path,
+      });
+      setItemToDelete(null);
+      setSelectedDirectory(currentDirectory);
+      await refreshDirectory();
+      setNotice({
+        type: "success",
+        message: `${itemToDelete.isDir ? "Pasta" : "Arquivo"} excluído com sucesso.`,
+      });
+    } catch (error) {
+      setNotice({ type: "error", message: String(error) });
+    } finally {
+      setDeletingItem(false);
+    }
+  }
+
+  function canDeleteDirectoryItem(item: DirectoryItem) {
+    const protectedNames = new Set([
+      "meu drive",
+      "my drive",
+      "outros computadores",
+      "other computers",
+      "drive compartilhado",
+      "drives compartilhados",
+      "drivers compartilhados",
+      "shared drives",
+    ]);
+    return (
+      !isPathInside(driveContentPath, item.path) &&
+      !protectedNames.has(item.name.toLocaleLowerCase())
+    );
+  }
+
   function navigateDirectory(path: string) {
     setCurrentDirectory(path);
     setSelectedDirectory(path);
   }
 
+  function openDriveBrowser() {
+    if (!settings.drivePath) {
+      setScreen("settings");
+      setNotice({
+        type: "info",
+        message: "O Google Drive ainda não foi localizado neste computador.",
+      });
+      return;
+    }
+    if (!currentDirectory) {
+      setCurrentDirectory(settings.drivePath);
+      setSelectedDirectory(settings.drivePath);
+    }
+    setScreen("browse");
+  }
+
   function navigateUp() {
     if (
       !currentDirectory ||
-      currentDirectory === settings.defaultFolder
+      currentDirectory === settings.drivePath
     )
       return;
     const parent = parentPath(currentDirectory);
-    if (parent.length >= settings.defaultFolder.length) navigateDirectory(parent);
+    if (isPathInside(parent, settings.drivePath)) navigateDirectory(parent);
   }
 
   async function removeHistory(id: string) {
@@ -755,6 +871,8 @@ function App() {
     setSettings(DEFAULT_SETTINGS);
     setHistory([]);
     setDriveValidation(null);
+    setDriveContentPath("");
+    setQuickDirectories([]);
     setCurrentDirectory("");
     setSelectedDirectory("");
     setNotice({ type: "info", message: "Configurações locais restauradas." });
@@ -804,7 +922,7 @@ function App() {
           </button>
           <button
             className={screen === "browse" ? "active" : ""}
-            onClick={() => setScreen("browse")}
+            onClick={openDriveBrowser}
           >
             <FolderOpen size={18} />
             Navegar no Drive
@@ -856,14 +974,14 @@ function App() {
               connected={connected}
               message={connected ? "Drive conectado" : "Verificar Drive"}
             />
-            <span title={settings.defaultFolder}>
-              {settings.defaultFolder || "Pasta padrão não definida"}
+            <span title={settings.drivePath}>
+              {settings.drivePath || "Google Drive não localizado"}
             </span>
             <button
               className="icon-button"
               aria-label="Abrir pasta do Google Drive"
               disabled={!settings.drivePath}
-              onClick={() => void openPath(settings.drivePath)}
+              onClick={() => void openInFileManager(settings.drivePath)}
             >
               <FolderOpen size={17} />
             </button>
@@ -890,6 +1008,32 @@ function App() {
           {screen === "quick" && (
             <div className="quick-layout">
               <section className="ticket-section" aria-labelledby="ticket-title">
+                <div className="quick-destination-field">
+                  <label htmlFor="quick-destination">
+                    Pasta de destino
+                  </label>
+                  <select
+                    id="quick-destination"
+                    value={settings.quickDestinationPath}
+                    disabled={quickDirectoriesLoading || !quickDirectories.length}
+                    onChange={(event) =>
+                      void selectQuickDestination(event.target.value)
+                    }
+                  >
+                    {quickDirectoriesLoading ? (
+                      <option value="">Carregando pastas do Drive…</option>
+                    ) : (
+                      quickDirectories.map((directory) => (
+                        <option key={directory.path} value={directory.path}>
+                          {directory.label}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                  <span title={quickDestinationPath}>
+                    {quickDestinationPath || "Nenhuma pasta disponível"}
+                  </span>
+                </div>
                 <div className="section-heading">
                   <div>
                     <h2 id="ticket-title">Número do atendimento</h2>
@@ -975,16 +1119,25 @@ function App() {
                 </dl>
                 <div className="destination-box">
                   <span>Destino</span>
-                  <strong title={settings.defaultFolder}>
-                    {settings.defaultFolder || "Configure uma pasta padrão"}
+                  <strong title={quickDestinationPath || settings.drivePath}>
+                    {quickDestinationPath || settings.drivePath || "Google Drive não localizado"}
                   </strong>
                   <span>{atendimento ? `[${atendimento}]` : "[número]"}</span>
                 </div>
                 <button
                   className="button primary wide"
-                  disabled={!connected || !atendimento || !quickItems.length}
+                  disabled={
+                    !connected ||
+                    !quickDestinationPath ||
+                    !atendimento ||
+                    !quickItems.length
+                  }
                   onClick={() =>
-                    void runTransfer("quick", quickItems, settings.defaultFolder)
+                    void runTransfer(
+                      "quick",
+                      quickItems,
+                      quickDestinationPath,
+                    )
                   }
                 >
                   <UploadCloud size={18} />
@@ -1004,22 +1157,22 @@ function App() {
                   <button
                     className="icon-button"
                     aria-label="Voltar para a pasta anterior"
-                    disabled={currentDirectory === settings.defaultFolder}
+                    disabled={currentDirectory === settings.drivePath}
                     onClick={navigateUp}
                   >
                     <ArrowLeft size={17} />
                   </button>
                   <button
                     className="icon-button"
-                    aria-label="Ir para a pasta padrão"
-                    onClick={() => navigateDirectory(settings.defaultFolder)}
+                    aria-label="Ir para a raiz do Google Drive"
+                    onClick={() => navigateDirectory(settings.drivePath)}
                   >
                     <Home size={17} />
                   </button>
                   <div className="breadcrumb" title={currentDirectory}>
                     <HardDrive size={15} />
-                    <span>{pathName(settings.defaultFolder) || "Drive"}</span>
-                    {currentDirectory !== settings.defaultFolder && (
+                    <span>{pathName(settings.drivePath) || "Drive"}</span>
+                    {currentDirectory !== settings.drivePath && (
                       <>
                         <ChevronRight size={14} />
                         <strong>{pathName(currentDirectory)}</strong>
@@ -1056,6 +1209,7 @@ function App() {
                     <span>Tipo</span>
                     <span>Tamanho</span>
                     <span />
+                    <span />
                   </div>
                   {directoryLoading ? (
                     <div className="directory-loading">
@@ -1070,26 +1224,40 @@ function App() {
                     />
                   ) : (
                     directoryItems.map((item) => (
-                      <button
+                      <div
                         className={`directory-row ${
                           selectedDirectory === item.path ? "selected" : ""
                         }`}
                         key={item.path}
-                        onClick={() => setSelectedDirectory(item.path)}
-                        onDoubleClick={() => item.isDir && navigateDirectory(item.path)}
                       >
-                        <span>
-                          <span className={`file-type-icon ${item.isDir ? "folder" : ""}`}>
-                            {item.isDir ? <Folder size={17} /> : <File size={17} />}
+                        <button
+                          className="directory-entry"
+                          onClick={() => setSelectedDirectory(item.path)}
+                          onDoubleClick={() => item.isDir && navigateDirectory(item.path)}
+                        >
+                          <span>
+                            <span className={`file-type-icon ${item.isDir ? "folder" : ""}`}>
+                              {item.isDir ? <Folder size={17} /> : <File size={17} />}
+                            </span>
+                            <strong>{item.name}</strong>
                           </span>
-                          <strong>{item.name}</strong>
-                        </span>
-                        <span>{item.isDir ? "Pasta" : "Arquivo"}</span>
-                        <span>{item.isDir ? "—" : formatBytes(item.size)}</span>
-                        <span>
-                          {item.isDir && <ChevronRight size={16} />}
-                        </span>
-                      </button>
+                          <span>{item.isDir ? "Pasta" : "Arquivo"}</span>
+                          <span>{item.isDir ? "—" : formatBytes(item.size)}</span>
+                          <span>
+                            {item.isDir && <ChevronRight size={16} />}
+                          </span>
+                        </button>
+                        {canDeleteDirectoryItem(item) && (
+                          <button
+                            className="icon-button danger directory-delete"
+                            aria-label={`Excluir ${item.name}`}
+                            title={`Excluir ${item.name}`}
+                            onClick={() => setItemToDelete(item)}
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        )}
+                      </div>
                     ))
                   )}
                 </div>
@@ -1110,7 +1278,7 @@ function App() {
                   <button
                     className="button subtle wide"
                     disabled={!selectedDirectory}
-                    onClick={() => void openPath(selectedDirectory)}
+                    onClick={() => void openInFileManager(selectedDirectory)}
                   >
                     <FolderOpen size={16} />
                     Abrir no Explorador
@@ -1246,7 +1414,7 @@ function App() {
                         <button
                           className="icon-button"
                           aria-label="Abrir pasta"
-                          onClick={() => void openPath(entry.destination)}
+                          onClick={() => void openInFileManager(entry.destination)}
                         >
                           <FolderOpen size={16} />
                         </button>
@@ -1296,7 +1464,9 @@ function App() {
                     <label>Localização do Drive</label>
                     <span>
                       {settings.drivePath ||
-                        "O Google Drive ainda não foi localizado ou confirmado."}
+                        (detected.length
+                          ? "Google Drive localizado. Confirme um dos locais abaixo."
+                          : "O Google Drive ainda não foi localizado.")}
                     </span>
                   </div>
                   <button className="button secondary" onClick={() => void chooseDrivePath()}>
@@ -1310,13 +1480,7 @@ function App() {
                     {detected.map((candidate) => (
                       <button
                         key={candidate.path}
-                        onClick={() =>
-                          void saveSettings({
-                            ...settings,
-                            drivePath: candidate.path,
-                            defaultFolder: "",
-                          })
-                        }
+                        onClick={() => void configureDriveLocation(candidate.path)}
                       >
                         <HardDrive size={17} />
                         <div>
@@ -1329,32 +1493,6 @@ function App() {
                     ))}
                   </div>
                 )}
-                <div className="setting-row">
-                  <div>
-                    <label>Pasta padrão dos atendimentos</label>
-                    <span>
-                      {settings.defaultFolder ||
-                        "Selecione uma pasta já existente dentro do Drive."}
-                    </span>
-                  </div>
-                  <div className="setting-actions">
-                    <button
-                      className="icon-button"
-                      aria-label="Abrir pasta padrão"
-                      disabled={!settings.defaultFolder}
-                      onClick={() => void openPath(settings.defaultFolder)}
-                    >
-                      <FolderOpen size={17} />
-                    </button>
-                    <button
-                      className="button secondary"
-                      disabled={!settings.drivePath}
-                      onClick={() => void chooseDefaultFolder()}
-                    >
-                      Selecionar pasta
-                    </button>
-                  </div>
-                </div>
                 {driveValidation && (
                   <div
                     className={`validation-banner ${
@@ -1369,7 +1507,7 @@ function App() {
                     <div>
                       <strong>
                         {driveValidation.valid
-                          ? "Pasta pronta para uso"
+                          ? "Google Drive pronto para uso"
                           : "Configuração requer atenção"}
                       </strong>
                       <span>{driveValidation.message}</span>
@@ -1516,6 +1654,52 @@ function App() {
               </button>
               <button className="button danger ghost" onClick={() => void answerConflict("cancel")}>
                 Cancelar envio
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {itemToDelete && (
+        <div className="modal-backdrop">
+          <section
+            className="delete-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-title"
+          >
+            <div className="modal-icon danger">
+              <Trash2 size={21} />
+            </div>
+            <h2 id="delete-title">
+              Excluir {itemToDelete.isDir ? "pasta" : "arquivo"}?
+            </h2>
+            <p>
+              <strong>{itemToDelete.name}</strong>
+              {itemToDelete.isDir
+                ? " e todo o conteúdo dentro dela serão excluídos permanentemente."
+                : " será excluído permanentemente."}
+            </p>
+            <span className="delete-path">{itemToDelete.path}</span>
+            <div className="modal-actions">
+              <button
+                className="button subtle"
+                disabled={deletingItem}
+                onClick={() => setItemToDelete(null)}
+              >
+                Cancelar
+              </button>
+              <button
+                className="button danger ghost"
+                disabled={deletingItem}
+                onClick={() => void deleteDirectoryItem()}
+              >
+                {deletingItem ? (
+                  <LoaderCircle className="spin" size={16} />
+                ) : (
+                  <Trash2 size={16} />
+                )}
+                {deletingItem ? "Excluindo…" : "Excluir permanentemente"}
               </button>
             </div>
           </section>

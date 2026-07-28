@@ -46,24 +46,25 @@ O aplicativo funciona no Windows e no macOS. O pacote deve ser compilado para a 
 ### Envio rápido
 
 1. O PackDrive valida o local configurado para o Google Drive.
-2. O usuário informa somente o número do atendimento.
-3. O aplicativo apresenta a pasta que será criada, por exemplo `[1234567890]`.
-4. O usuário seleciona ou arrasta os arquivos e pastas.
-5. O backend cria a pasta dentro do destino padrão e copia os itens.
-6. Ao concluir, o envio é registrado no histórico.
-7. Se a preferência estiver habilitada, a pasta é aberta no Explorador de Arquivos ou Finder.
+2. O usuário escolhe uma única pasta de destino na lista de pastas do Drive.
+3. Quando disponível, o destino inicial é `Drives compartilhados/CONTROLE DE PROPRIEDADES DE TERCEIROS/IMPLANTAÇÃO/PACK`.
+4. O usuário informa somente o número do atendimento.
+5. O aplicativo apresenta a pasta que será criada, por exemplo `[1234567890]`.
+6. O usuário seleciona ou arrasta os arquivos e pastas.
+7. O backend cria a pasta no destino escolhido e copia os itens.
+8. Ao concluir, o envio é registrado no histórico e pode ser aberto no Explorador de Arquivos ou Finder.
 
 Exemplo:
 
 ```text
-Pasta padrão:
-G:\Meu Drive\Atendimentos
+Pasta selecionada:
+E:\Google Drive\Drives compartilhados\CONTROLE DE PROPRIEDADES DE TERCEIROS\IMPLANTAÇÃO\PACK
 
 Atendimento:
 1234567890
 
 Destino:
-G:\Meu Drive\Atendimentos\[1234567890]
+E:\Google Drive\Drives compartilhados\CONTROLE DE PROPRIEDADES DE TERCEIROS\IMPLANTAÇÃO\PACK\[1234567890]
 ```
 
 Se a pasta do atendimento já existir, ela não é apagada. Os novos itens são adicionados de acordo com a política de duplicados configurada.
@@ -155,10 +156,11 @@ Algumas funções dependem do runtime do Tauri e não estarão disponíveis ao e
 
 Na primeira execução:
 
-1. O PackDrive procura unidades e caminhos com nomes como `Google Drive`, `Meu Drive`, `My Drive`, `Drive compartilhado` e `Shared drives`. No macOS, também procura contas `GoogleDrive-*` em `~/Library/CloudStorage` e volumes compatíveis em `/Volumes`.
-2. Confirme um local detectado ou use **Alterar localização** para selecionar a pasta manualmente.
-3. Selecione uma pasta padrão já existente dentro do Google Drive.
-4. O aplicativo valida existência, acesso, permissão de escrita e espaço disponível.
+1. O PackDrive procura automaticamente a raiz montada pelo Google Drive para computador.
+2. No Windows, reconhece caminhos como `E:\Google Drive`; no macOS, reconhece contas `GoogleDrive-*` em `~/Library/CloudStorage` e volumes compatíveis em `/Volumes`.
+3. O primeiro local compatível é configurado automaticamente, sem configuração adicional.
+4. No macOS, quando a raiz contém `Meu Drive` ou `My Drive`, essa área gravável é usada automaticamente para criar os atendimentos.
+5. O aplicativo valida existência, acesso, permissão de escrita e espaço disponível.
 
 As configurações são armazenadas pelo plugin Store no diretório de dados do aplicativo definido pelo sistema operacional. Nenhuma conta ou credencial do Google é armazenada.
 
@@ -173,7 +175,7 @@ Origem:
 C:\Backup\Empresa
 
 Destino:
-G:\Meu Drive\Atendimentos\[1234567890]\Empresa
+E:\Google Drive\[1234567890]\Empresa
 ```
 
 ### Arquivos duplicados
@@ -305,12 +307,11 @@ Para distribuir o aplicativo fora da máquina de desenvolvimento no macOS, confi
 - Abra **Configurações** e use **Alterar localização**.
 - Selecione a pasta raiz do Google Drive montado no computador.
 
-### A pasta padrão não é aceita
+### O Google Drive foi localizado, mas não está pronto
 
-- A pasta deve existir.
-- Ela precisa estar dentro do Google Drive configurado.
-- O usuário atual deve possuir permissão de escrita.
-- Escolha outra pasta em **Configurações** e execute a validação novamente.
+- Confirme que o local detectado continua montado.
+- O usuário atual precisa ter permissão de escrita em `Meu Drive`, `My Drive` ou na própria raiz detectada.
+- Abra **Configurações** e execute a validação novamente.
 
 ### Um arquivo não foi copiado
 

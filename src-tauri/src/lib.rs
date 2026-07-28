@@ -9,6 +9,7 @@ use std::{
     time::{Duration, Instant},
 };
 use tauri::{AppHandle, Emitter, State};
+use tauri_plugin_opener::OpenerExt;
 use uuid::Uuid;
 use walkdir::WalkDir;
 
@@ -17,12 +18,15 @@ use std::process::Command;
 
 const COPY_BUFFER_SIZE: usize = 1024 * 1024;
 const WINDOWS_SAFE_PATH_LENGTH: usize = 240;
-const DRIVE_FOLDER_LABELS: [&str; 5] = [
+const DRIVE_FOLDER_LABELS: [&str; 8] = [
     "Google Drive",
     "Meu Drive",
     "My Drive",
     "Drive compartilhado",
+    "Drives compartilhados",
+    "Drivers compartilhados",
     "Shared drives",
+    "Other computers",
 ];
 
 #[derive(Default)]
@@ -58,6 +62,20 @@ struct DirectoryItem {
     is_dir: bool,
     size: u64,
     modified_at: Option<u64>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DirectoryChoice {
+    path: String,
+    label: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct QuickDestinations {
+    default_path: String,
+    directories: Vec<DirectoryChoice>,
 }
 
 #[derive(Debug, Serialize)]
@@ -227,18 +245,28 @@ fn push_drive_candidate(
     }
 }
 
-fn add_drive_folder_children(
+fn add_google_drive_account_roots(
     candidates: &mut Vec<DriveCandidate>,
     seen: &mut HashSet<PathBuf>,
-    root: &Path,
+    cloud_storage: &Path,
     source: &str,
-) -> bool {
-    let previous_count = candidates.len();
-    for label in DRIVE_FOLDER_LABELS {
-        let path = root.join(label);
-        push_drive_candidate(candidates, seen, path, label.into(), source);
+) {
+    let Ok(entries) = fs::read_dir(cloud_storage) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let account_root = entry.path();
+        let directory_name = entry.file_name().to_string_lossy().to_lowercase();
+        if directory_name.starts_with("googledrive-") && account_root.is_dir() {
+            push_drive_candidate(
+                candidates,
+                seen,
+                account_root,
+                "Google Drive".into(),
+                source,
+            );
+        }
     }
-    candidates.len() > previous_count
 }
 
 #[tauri::command]
@@ -301,31 +329,12 @@ fn detect_google_drives() -> Vec<DriveCandidate> {
         #[cfg(target_os = "macos")]
         {
             let cloud_storage = home.join("Library").join("CloudStorage");
-            if let Ok(entries) = fs::read_dir(cloud_storage) {
-                for entry in entries.flatten() {
-                    let account_root = entry.path();
-                    let directory_name = entry.file_name().to_string_lossy().to_lowercase();
-                    if !directory_name.starts_with("googledrive-") || !account_root.is_dir() {
-                        continue;
-                    }
-
-                    let found_children = add_drive_folder_children(
-                        &mut candidates,
-                        &mut seen,
-                        &account_root,
-                        "Google Drive para computador (macOS)",
-                    );
-                    if !found_children {
-                        push_drive_candidate(
-                            &mut candidates,
-                            &mut seen,
-                            account_root,
-                            entry.file_name().to_string_lossy().into_owned(),
-                            "Google Drive para computador (macOS)",
-                        );
-                    }
-                }
-            }
+            add_google_drive_account_roots(
+                &mut candidates,
+                &mut seen,
+                &cloud_storage,
+                "Google Drive para computador (macOS)",
+            );
         }
 
         for label in DRIVE_FOLDER_LABELS {
@@ -349,21 +358,116 @@ fn detect_google_drives() -> Vec<DriveCandidate> {
             if !normalized_name.contains("googledrive") || !volume.is_dir() {
                 continue;
             }
-            let found_children =
-                add_drive_folder_children(&mut candidates, &mut seen, &volume, "Volume do macOS");
-            if !found_children {
-                push_drive_candidate(
-                    &mut candidates,
-                    &mut seen,
-                    volume,
-                    volume_name,
-                    "Volume do macOS",
-                );
-            }
+            push_drive_candidate(
+                &mut candidates,
+                &mut seen,
+                volume,
+                volume_name,
+                "Volume do macOS",
+            );
         }
     }
 
     candidates
+}
+
+#[tauri::command]
+fn resolve_drive_content_path(drive_root: String) -> Result<String, String> {
+    let root = canonical_directory(Path::new(&drive_root))?;
+    for label in ["Meu Drive", "My Drive"] {
+        let content_path = root.join(label);
+        if content_path.is_dir() {
+            return Ok(path_text(&content_path));
+        }
+    }
+    Ok(path_text(&root))
+}
+
+fn find_child_directory(parent: &Path, names: &[&str]) -> Option<PathBuf> {
+    let entries = fs::read_dir(parent).ok()?;
+    entries.filter_map(Result::ok).find_map(|entry| {
+        let path = entry.path();
+        let name = entry.file_name().to_string_lossy().to_lowercase();
+        (path.is_dir()
+            && names
+                .iter()
+                .any(|candidate| name == candidate.to_lowercase()))
+        .then_some(path)
+    })
+}
+
+fn build_quick_destinations(drive_root: &Path) -> Result<QuickDestinations, String> {
+    let root = canonical_directory(drive_root)?;
+    let preferred_path = find_child_directory(
+        &root,
+        &[
+            "Drives compartilhados",
+            "Drivers compartilhados",
+            "Drive compartilhado",
+            "Shared drives",
+        ],
+    )
+    .and_then(|shared| find_child_directory(&shared, &["CONTROLE DE PROPRIEDADES DE TERCEIROS"]))
+    .and_then(|control| find_child_directory(&control, &["IMPLANTAÇÃO"]))
+    .and_then(|deployment| find_child_directory(&deployment, &["PACK"]));
+
+    let default_path = preferred_path.unwrap_or_else(|| {
+        ["Meu Drive", "My Drive"]
+            .iter()
+            .find_map(|label| {
+                let path = root.join(label);
+                path.is_dir().then_some(path)
+            })
+            .unwrap_or_else(|| root.clone())
+    });
+
+    let mut directories = WalkDir::new(&root)
+        .follow_links(false)
+        .into_iter()
+        .filter_entry(|entry| {
+            entry.depth() == 0 || !entry.file_name().to_string_lossy().starts_with('.')
+        })
+        .filter_map(Result::ok)
+        .filter(|entry| entry.file_type().is_dir())
+        .map(|entry| {
+            let path = entry.path();
+            let relative = path.strip_prefix(&root).unwrap_or(path);
+            let label = if relative.as_os_str().is_empty() {
+                "Google Drive".into()
+            } else {
+                relative
+                    .components()
+                    .map(|component| component.as_os_str().to_string_lossy())
+                    .collect::<Vec<_>>()
+                    .join(" / ")
+            };
+            DirectoryChoice {
+                path: path_text(path),
+                label,
+            }
+        })
+        .collect::<Vec<_>>();
+    directories.sort_by_key(|directory| directory.label.to_lowercase());
+
+    Ok(QuickDestinations {
+        default_path: path_text(&default_path),
+        directories,
+    })
+}
+
+#[tauri::command]
+async fn list_quick_destinations(drive_root: String) -> Result<QuickDestinations, String> {
+    tauri::async_runtime::spawn_blocking(move || build_quick_destinations(Path::new(&drive_root)))
+        .await
+        .map_err(|error| format!("Não foi possível listar as pastas do Drive: {error}"))?
+}
+
+#[tauri::command]
+fn open_in_file_manager(app: AppHandle, path: String) -> Result<(), String> {
+    let directory = canonical_directory(Path::new(&path))?;
+    app.opener()
+        .open_path(path_text(&directory), None::<&str>)
+        .map_err(|error| format!("Não foi possível abrir a pasta no explorador: {error}"))
 }
 
 #[tauri::command]
@@ -451,6 +555,53 @@ fn create_directory(allowed_root: String, parent: String, name: String) -> Resul
     }
     fs::create_dir(&target).map_err(|error| format!("Não foi possível criar a pasta: {error}"))?;
     Ok(path_text(&target))
+}
+
+#[tauri::command]
+fn delete_path(allowed_root: String, path: String) -> Result<(), String> {
+    let root = canonical_directory(Path::new(&allowed_root))?;
+    let target = Path::new(&path)
+        .canonicalize()
+        .map_err(|error| format!("Não foi possível acessar {}: {error}", path))?;
+
+    if target == root {
+        return Err("A raiz do Google Drive não pode ser excluída.".into());
+    }
+    if !target.starts_with(&root) {
+        return Err("O item está fora do Google Drive configurado.".into());
+    }
+
+    let relative = target
+        .strip_prefix(&root)
+        .map_err(|_| "O item está fora do Google Drive configurado.".to_string())?;
+    if relative.components().count() == 1 {
+        let name = relative
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or_default()
+            .to_lowercase();
+        let protected = [
+            "meu drive",
+            "my drive",
+            "outros computadores",
+            "other computers",
+            "drive compartilhado",
+            "drives compartilhados",
+            "drivers compartilhados",
+            "shared drives",
+        ];
+        if protected.contains(&name.as_str()) {
+            return Err("Essa pasta faz parte da estrutura do Google Drive.".into());
+        }
+    }
+
+    if target.is_dir() {
+        fs::remove_dir_all(&target)
+            .map_err(|error| format!("Não foi possível excluir a pasta: {error}"))
+    } else {
+        fs::remove_file(&target)
+            .map_err(|error| format!("Não foi possível excluir o arquivo: {error}"))
+    }
 }
 
 #[tauri::command]
@@ -984,9 +1135,13 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::default().build())
         .invoke_handler(tauri::generate_handler![
             detect_google_drives,
+            resolve_drive_content_path,
+            list_quick_destinations,
+            open_in_file_manager,
             inspect_paths,
             list_directory,
             create_directory,
+            delete_path,
             prepare_destination,
             validate_destination,
             start_copy,
@@ -1023,21 +1178,75 @@ mod tests {
 
         let mut candidates = Vec::new();
         let mut seen = HashSet::new();
-        assert!(add_drive_folder_children(
-            &mut candidates,
-            &mut seen,
-            &account,
-            "macOS test",
-        ));
-        assert_eq!(candidates.len(), 2);
-        assert!(candidates
-            .iter()
-            .any(|candidate| candidate.path == path_text(&my_drive)));
-        assert!(candidates
-            .iter()
-            .any(|candidate| candidate.path == path_text(&shared_drives)));
+        add_google_drive_account_roots(&mut candidates, &mut seen, &root, "macOS test");
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].path, path_text(&account));
+        assert_eq!(candidates[0].label, "Google Drive");
 
         fs::remove_dir_all(root).expect("remove test folder");
+    }
+
+    #[test]
+    fn resolves_personal_drive_inside_macos_account_root() {
+        let root = std::env::temp_dir().join(format!("packdrive-root-test-{}", Uuid::new_v4()));
+        let my_drive = root.join("Meu Drive");
+        fs::create_dir_all(&my_drive).expect("create personal drive folder");
+
+        assert_eq!(
+            resolve_drive_content_path(path_text(&root)).expect("resolve drive content"),
+            path_text(&my_drive.canonicalize().expect("canonical personal drive"))
+        );
+
+        fs::remove_dir_all(root).expect("remove test folder");
+    }
+
+    #[test]
+    fn deletes_items_but_protects_drive_roots() {
+        let root = std::env::temp_dir().join(format!("packdrive-delete-test-{}", Uuid::new_v4()));
+        let file = root.join("documento.txt");
+        let folder = root.join("temporaria");
+        let protected = root.join("Meu Drive");
+        fs::create_dir_all(&folder).expect("create removable folder");
+        fs::create_dir_all(&protected).expect("create protected drive folder");
+        File::create(&file).expect("create removable file");
+
+        delete_path(path_text(&root), path_text(&file)).expect("delete file");
+        delete_path(path_text(&root), path_text(&folder)).expect("delete folder");
+        assert!(!file.exists());
+        assert!(!folder.exists());
+        assert!(delete_path(path_text(&root), path_text(&protected)).is_err());
+        assert!(delete_path(path_text(&root), path_text(&root)).is_err());
+
+        fs::remove_dir_all(root).expect("remove test root");
+    }
+
+    #[test]
+    fn selects_pack_as_the_default_quick_destination() {
+        let root = std::env::temp_dir().join(format!("packdrive-quick-test-{}", Uuid::new_v4()));
+        let pack = root
+            .join("Drives compartilhados")
+            .join("CONTROLE DE PROPRIEDADES DE TERCEIROS")
+            .join("IMPLANTAÇÃO")
+            .join("PACK");
+        let hidden = root.join(".interno");
+        fs::create_dir_all(&pack).expect("create preferred quick destination");
+        fs::create_dir_all(&hidden).expect("create hidden directory");
+
+        let choices = build_quick_destinations(&root).expect("list quick destinations");
+        assert_eq!(
+            choices.default_path,
+            path_text(&pack.canonicalize().expect("canonical PACK path"))
+        );
+        assert!(choices
+            .directories
+            .iter()
+            .any(|directory| directory.path == choices.default_path));
+        assert!(!choices
+            .directories
+            .iter()
+            .any(|directory| directory.label.contains(".interno")));
+
+        fs::remove_dir_all(root).expect("remove quick destination test root");
     }
 
     #[test]

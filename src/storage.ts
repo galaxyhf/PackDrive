@@ -10,7 +10,16 @@ const storePromise = load("packdrive.json", { autoSave: false });
 export async function readSettings(): Promise<AppSettings> {
   const store = await storePromise;
   const saved = await store.get<Partial<AppSettings>>("settings");
-  return { ...DEFAULT_SETTINGS, ...saved };
+  return {
+    drivePath: saved?.drivePath ?? DEFAULT_SETTINGS.drivePath,
+    quickDestinationPath:
+      saved?.quickDestinationPath ?? DEFAULT_SETTINGS.quickDestinationPath,
+    duplicateBehavior:
+      saved?.duplicateBehavior ?? DEFAULT_SETTINGS.duplicateBehavior,
+    openAfterComplete:
+      saved?.openAfterComplete ?? DEFAULT_SETTINGS.openAfterComplete,
+    historyLimit: saved?.historyLimit ?? DEFAULT_SETTINGS.historyLimit,
+  };
 }
 
 export async function writeSettings(settings: AppSettings): Promise<void> {

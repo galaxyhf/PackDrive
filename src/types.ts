@@ -3,7 +3,7 @@ export type DuplicateBehavior = "rename" | "replace" | "skip" | "ask";
 
 export interface AppSettings {
   drivePath: string;
-  defaultFolder: string;
+  quickDestinationPath: string;
   duplicateBehavior: DuplicateBehavior;
   openAfterComplete: boolean;
   historyLimit: number;
@@ -30,6 +30,16 @@ export interface DirectoryItem {
   isDir: boolean;
   size: number;
   modifiedAt?: number;
+}
+
+export interface DirectoryChoice {
+  path: string;
+  label: string;
+}
+
+export interface QuickDestinations {
+  defaultPath: string;
+  directories: DirectoryChoice[];
 }
 
 export interface DestinationValidation {
@@ -93,7 +103,7 @@ export interface HistoryEntry {
 
 export const DEFAULT_SETTINGS: AppSettings = {
   drivePath: "",
-  defaultFolder: "",
+  quickDestinationPath: "",
   duplicateBehavior: "rename",
   openAfterComplete: true,
   historyLimit: 100,
