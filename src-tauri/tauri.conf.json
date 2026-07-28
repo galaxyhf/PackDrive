@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "packdrive",
+  "productName": "PackDrive",
   "version": "0.1.0",
   "identifier": "com.caiosilva.packdrive",
   "build": {
@@ -12,9 +12,12 @@
   "app": {
     "windows": [
       {
-        "title": "packdrive",
-        "width": 800,
-        "height": 600
+        "title": "PackDrive",
+        "width": 1180,
+        "height": 760,
+        "minWidth": 960,
+        "minHeight": 640,
+        "center": true
       }
     ],
     "security": {
