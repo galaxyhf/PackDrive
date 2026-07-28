@@ -4,7 +4,7 @@ Aplicativo desktop leve para organizar e copiar arquivos de atendimentos para um
 
 O PackDrive não utiliza a API do Google Drive. Todas as operações acontecem diretamente no sistema de arquivos, e o Google Drive para computador continua responsável pela sincronização com a nuvem.
 
-> A primeira versão é destinada ao Windows. A arquitetura separa a interface React das operações nativas em Rust para permitir suporte futuro ao macOS.
+O aplicativo funciona no Windows e no macOS. O pacote deve ser compilado para a arquitetura Intel ou Apple Silicon do Mac de destino.
 
 ## Sumário
 
@@ -25,13 +25,13 @@ O PackDrive não utiliza a API do Google Drive. Todas as operações acontecem d
 
 ## Principais recursos
 
-- Detecção automática de unidades e pastas comuns do Google Drive no Windows.
+- Detecção automática do Google Drive no Windows e em `~/Library/CloudStorage` no macOS.
 - Seleção manual do Google Drive quando a detecção automática não encontra o local correto.
 - Envio rápido para pastas no formato `[NUMERO_DO_ATENDIMENTO]`.
 - Seleção de arquivos, pastas ou uma combinação dos dois.
 - Suporte a arrastar e soltar vários itens sobre a janela.
 - Navegador manual de pastas dentro do destino configurado.
-- Criação de pastas com validação de nomes inválidos e reservados do Windows.
+- Criação de pastas com nomes compatíveis entre Windows e macOS.
 - Preservação da estrutura de diretórios, incluindo subpastas vazias.
 - Cópia em blocos pelo backend Rust, sem carregar arquivos inteiros na memória.
 - Progresso geral e do arquivo atual, velocidade, quantidade de itens e tempo estimado.
@@ -51,7 +51,7 @@ O PackDrive não utiliza a API do Google Drive. Todas as operações acontecem d
 4. O usuário seleciona ou arrasta os arquivos e pastas.
 5. O backend cria a pasta dentro do destino padrão e copia os itens.
 6. Ao concluir, o envio é registrado no histórico.
-7. Se a preferência estiver habilitada, a pasta é aberta no Explorador de Arquivos.
+7. Se a preferência estiver habilitada, a pasta é aberta no Explorador de Arquivos ou Finder.
 
 Exemplo:
 
@@ -95,23 +95,37 @@ Em **Navegar no Drive**, é possível:
 
 ## Requisitos
 
-### Para utilizar no Windows
+### Para utilizar
+
+No Windows:
 
 - Windows 10 ou 11;
 - Google Drive para computador instalado e conectado;
 - acesso de leitura às origens selecionadas;
 - acesso de escrita à pasta de destino.
 
+No macOS:
+
+- uma versão do macOS compatível com o Tauri 2 e com a versão instalada do Google Drive para computador;
+- Google Drive para computador instalado e conectado;
+- acesso de leitura às origens selecionadas;
+- acesso de escrita à pasta de destino;
+- quando solicitado pelo macOS, permissão para acessar arquivos e pastas.
+
 ### Para desenvolver
 
 - Node.js `20.19` ou superior, ou `22.12` ou superior;
 - npm;
 - Rust estável com Cargo;
-- Microsoft C++ Build Tools com a carga de trabalho **Desenvolvimento para Desktop com C++**;
-- Microsoft Edge WebView2;
 - dependências de desenvolvimento do [Tauri 2](https://v2.tauri.app/start/prerequisites/).
 
-O Google Drive para computador não é necessário para compilar o projeto, mas é necessário para testar o fluxo real de envio no Windows.
+No Windows, também são necessários o Microsoft C++ Build Tools com a carga de trabalho **Desenvolvimento para Desktop com C++** e o Microsoft Edge WebView2. No macOS, instale as ferramentas de linha de comando do Xcode:
+
+```bash
+xcode-select --install
+```
+
+O Google Drive para computador não é necessário para compilar o projeto, mas é necessário para testar o fluxo real de envio.
 
 ## Instalação e desenvolvimento
 
@@ -141,7 +155,7 @@ Algumas funções dependem do runtime do Tauri e não estarão disponíveis ao e
 
 Na primeira execução:
 
-1. O PackDrive procura unidades e caminhos com nomes como `Google Drive`, `Meu Drive`, `My Drive`, `Drive compartilhado` e `Shared drives`.
+1. O PackDrive procura unidades e caminhos com nomes como `Google Drive`, `Meu Drive`, `My Drive`, `Drive compartilhado` e `Shared drives`. No macOS, também procura contas `GoogleDrive-*` em `~/Library/CloudStorage` e volumes compatíveis em `/Volumes`.
 2. Confirme um local detectado ou use **Alterar localização** para selecionar a pasta manualmente.
 3. Selecione uma pasta padrão já existente dentro do Google Drive.
 4. O aplicativo valida existência, acesso, permissão de escrita e espaço disponível.
@@ -250,11 +264,11 @@ cargo test --manifest-path src-tauri/Cargo.toml
 cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 ```
 
-Os testes atuais cobrem as regras de nomes de pastas do Windows e o renomeio automático de arquivos duplicados.
+Os testes atuais cobrem nomes de pastas compatíveis com o Windows, o layout usado pelo Google Drive no macOS e o renomeio automático de arquivos duplicados.
 
 ## Gerando o instalador
 
-O pacote do Windows deve ser gerado em uma máquina Windows com os requisitos do Tauri instalados:
+Os pacotes devem ser gerados no sistema operacional de destino com os requisitos do Tauri instalados:
 
 ```bash
 npm run tauri build
@@ -263,10 +277,12 @@ npm run tauri build
 Os artefatos são produzidos dentro de:
 
 ```text
-src-tauri\target\release\bundle\
+src-tauri/target/release/bundle/
 ```
 
-Os formatos disponíveis dependem dos targets habilitados e das ferramentas instaladas no ambiente de build.
+No Windows, o Tauri gera os formatos habilitados, como `.msi` e `.exe`. No macOS, gera o aplicativo `.app` e, conforme a configuração e as ferramentas disponíveis, um `.dmg`.
+
+Para distribuir o aplicativo fora da máquina de desenvolvimento no macOS, configure assinatura de código e notarização da Apple. Builds locais podem ser executados sem essas credenciais.
 
 ## Privacidade e segurança
 
@@ -276,7 +292,7 @@ Os formatos disponíveis dependem dos targets habilitados e das ferramentas inst
 - Configurações e histórico permanecem no computador.
 - Origens são lidas em streaming e os dados são gravados diretamente no destino.
 - Caminhos de destino são normalizados e precisam permanecer dentro do Drive configurado.
-- Nomes com path traversal ou caracteres inválidos do Windows são bloqueados.
+- Nomes com path traversal ou caracteres incompatíveis com o Windows são bloqueados para preservar a portabilidade dos arquivos.
 - Antes da cópia são verificados destino, permissão de escrita, origens e espaço disponível.
 
 ## Solução de problemas
@@ -284,7 +300,8 @@ Os formatos disponíveis dependem dos targets habilitados e das ferramentas inst
 ### O Google Drive não foi encontrado
 
 - Confirme que o Google Drive para computador está aberto e conectado.
-- Verifique se a unidade aparece no Explorador de Arquivos.
+- No Windows, verifique se a unidade aparece no Explorador de Arquivos.
+- No macOS, verifique se a conta aparece no Finder ou em `~/Library/CloudStorage`.
 - Abra **Configurações** e use **Alterar localização**.
 - Selecione a pasta raiz do Google Drive montado no computador.
 
@@ -301,7 +318,7 @@ Os formatos disponíveis dependem dos targets habilitados e das ferramentas inst
 - Confirme que o arquivo não está bloqueado por outro programa.
 - Verifique o espaço livre no destino.
 - Confira no histórico se a operação terminou com erros.
-- Caminhos excessivamente longos podem ser recusados para evitar problemas no Windows.
+- No Windows, caminhos excessivamente longos podem ser recusados para evitar falhas do sistema.
 
 ### O aplicativo não compila no Windows
 
@@ -311,9 +328,22 @@ Os formatos disponíveis dependem dos targets habilitados e das ferramentas inst
 - Execute `npm install` novamente.
 - Consulte os [pré-requisitos oficiais do Tauri](https://v2.tauri.app/start/prerequisites/).
 
+### O aplicativo não compila no macOS
+
+- Confirme a instalação do Rust com `rustc --version`.
+- Confirme a instalação do Node.js com `node --version`.
+- Execute `xcode-select --install` e aceite a licença do Xcode, se solicitada.
+- Execute `npm install` novamente.
+- Consulte os [pré-requisitos oficiais do Tauri](https://v2.tauri.app/start/prerequisites/).
+
+### O macOS não permite acessar uma pasta
+
+- Selecione novamente a pasta pelo botão **Alterar localização**.
+- Abra **Ajustes do Sistema > Privacidade e Segurança** e confira as permissões de **Arquivos e Pastas** do PackDrive.
+- Confirme que o Google Drive para computador está ativo e que a pasta está disponível localmente.
+
 ## Limitações conhecidas
 
-- A primeira versão implementa detecção automática específica para Windows.
 - A localização do Drive pode exigir seleção manual em instalações com nomes ou montagens incomuns.
 - O PackDrive confirma apenas a cópia para a pasta local; ele não acompanha a conclusão da sincronização com a nuvem.
 - O histórico é local ao computador e não é sincronizado entre instalações.

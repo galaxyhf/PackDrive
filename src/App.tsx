@@ -1550,7 +1550,7 @@ function App() {
               />
             </label>
             <span className="field-help">
-              Não use &lt; &gt; : &quot; / \ | ? * ou nomes reservados do Windows.
+              Não use &lt; &gt; : &quot; / \ | ? * ou nomes incompatíveis com o Windows.
             </span>
             <div className="modal-actions">
               <button className="button subtle" onClick={() => setFolderModalOpen(false)}>

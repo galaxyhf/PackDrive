@@ -17,6 +17,13 @@ use std::process::Command;
 
 const COPY_BUFFER_SIZE: usize = 1024 * 1024;
 const WINDOWS_SAFE_PATH_LENGTH: usize = 240;
+const DRIVE_FOLDER_LABELS: [&str; 5] = [
+    "Google Drive",
+    "Meu Drive",
+    "My Drive",
+    "Drive compartilhado",
+    "Shared drives",
+];
 
 #[derive(Default)]
 struct TransferState {
@@ -204,17 +211,40 @@ fn has_parent_component(path: &Path) -> bool {
         .any(|component| matches!(component, Component::ParentDir))
 }
 
+fn push_drive_candidate(
+    candidates: &mut Vec<DriveCandidate>,
+    seen: &mut HashSet<PathBuf>,
+    path: PathBuf,
+    label: String,
+    source: &str,
+) {
+    if path.is_dir() && seen.insert(path.clone()) {
+        candidates.push(DriveCandidate {
+            path: path_text(&path),
+            label,
+            source: source.into(),
+        });
+    }
+}
+
+fn add_drive_folder_children(
+    candidates: &mut Vec<DriveCandidate>,
+    seen: &mut HashSet<PathBuf>,
+    root: &Path,
+    source: &str,
+) -> bool {
+    let previous_count = candidates.len();
+    for label in DRIVE_FOLDER_LABELS {
+        let path = root.join(label);
+        push_drive_candidate(candidates, seen, path, label.into(), source);
+    }
+    candidates.len() > previous_count
+}
+
 #[tauri::command]
 fn detect_google_drives() -> Vec<DriveCandidate> {
     let mut candidates = Vec::new();
     let mut seen = HashSet::new();
-    let labels = [
-        "Google Drive",
-        "Meu Drive",
-        "My Drive",
-        "Drive compartilhado",
-        "Shared drives",
-    ];
 
     #[cfg(target_os = "windows")]
     {
@@ -223,15 +253,15 @@ fn detect_google_drives() -> Vec<DriveCandidate> {
             if !root.exists() {
                 continue;
             }
-            for label in labels {
+            for label in DRIVE_FOLDER_LABELS {
                 let path = root.join(label);
-                if path.is_dir() && seen.insert(path.clone()) {
-                    candidates.push(DriveCandidate {
-                        path: path_text(&path),
-                        label: label.into(),
-                        source: "Unidade do Windows".into(),
-                    });
-                }
+                push_drive_candidate(
+                    &mut candidates,
+                    &mut seen,
+                    path,
+                    label.into(),
+                    "Unidade do Windows",
+                );
             }
         }
 
@@ -247,18 +277,18 @@ fn detect_google_drives() -> Vec<DriveCandidate> {
                 }
                 let drive = columns[columns.len() - 2];
                 let volume = columns[columns.len() - 1];
-                if labels
+                if DRIVE_FOLDER_LABELS
                     .iter()
                     .any(|label| volume.to_lowercase().contains(&label.to_lowercase()))
                 {
                     let path = PathBuf::from(format!("{drive}\\"));
-                    if path.is_dir() && seen.insert(path.clone()) {
-                        candidates.push(DriveCandidate {
-                            path: path_text(&path),
-                            label: volume.into(),
-                            source: "Volume identificado".into(),
-                        });
-                    }
+                    push_drive_candidate(
+                        &mut candidates,
+                        &mut seen,
+                        path,
+                        volume.into(),
+                        "Volume identificado",
+                    );
                 }
             }
         }
@@ -268,14 +298,67 @@ fn detect_google_drives() -> Vec<DriveCandidate> {
         .or_else(|| std::env::var_os("HOME"))
         .map(PathBuf::from)
     {
-        for label in labels {
+        #[cfg(target_os = "macos")]
+        {
+            let cloud_storage = home.join("Library").join("CloudStorage");
+            if let Ok(entries) = fs::read_dir(cloud_storage) {
+                for entry in entries.flatten() {
+                    let account_root = entry.path();
+                    let directory_name = entry.file_name().to_string_lossy().to_lowercase();
+                    if !directory_name.starts_with("googledrive-") || !account_root.is_dir() {
+                        continue;
+                    }
+
+                    let found_children = add_drive_folder_children(
+                        &mut candidates,
+                        &mut seen,
+                        &account_root,
+                        "Google Drive para computador (macOS)",
+                    );
+                    if !found_children {
+                        push_drive_candidate(
+                            &mut candidates,
+                            &mut seen,
+                            account_root,
+                            entry.file_name().to_string_lossy().into_owned(),
+                            "Google Drive para computador (macOS)",
+                        );
+                    }
+                }
+            }
+        }
+
+        for label in DRIVE_FOLDER_LABELS {
             let path = home.join(label);
-            if path.is_dir() && seen.insert(path.clone()) {
-                candidates.push(DriveCandidate {
-                    path: path_text(&path),
-                    label: label.into(),
-                    source: "Pasta do usuário".into(),
-                });
+            push_drive_candidate(
+                &mut candidates,
+                &mut seen,
+                path,
+                label.into(),
+                "Pasta do usuário",
+            );
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    if let Ok(entries) = fs::read_dir("/Volumes") {
+        for entry in entries.flatten() {
+            let volume = entry.path();
+            let volume_name = entry.file_name().to_string_lossy().into_owned();
+            let normalized_name = volume_name.to_lowercase().replace(' ', "");
+            if !normalized_name.contains("googledrive") || !volume.is_dir() {
+                continue;
+            }
+            let found_children =
+                add_drive_folder_children(&mut candidates, &mut seen, &volume, "Volume do macOS");
+            if !found_children {
+                push_drive_candidate(
+                    &mut candidates,
+                    &mut seen,
+                    volume,
+                    volume_name,
+                    "Volume do macOS",
+                );
             }
         }
     }
@@ -505,7 +588,7 @@ fn create_source_directories(sources: &[String], destination: &Path) -> Vec<Stri
                 continue;
             };
             let target = destination.join(folder_name).join(inside);
-            if path_text(&target).encode_utf16().count() > WINDOWS_SAFE_PATH_LENGTH {
+            if exceeds_safe_path_length(&target) {
                 errors.push(format!(
                     "O caminho da pasta é muito longo: {}",
                     path_text(&target)
@@ -521,6 +604,10 @@ fn create_source_directories(sources: &[String], destination: &Path) -> Vec<Stri
         }
     }
     errors
+}
+
+fn exceeds_safe_path_length(path: &Path) -> bool {
+    cfg!(target_os = "windows") && path_text(path).encode_utf16().count() > WINDOWS_SAFE_PATH_LENGTH
 }
 
 fn renamed_path(path: &Path) -> PathBuf {
@@ -639,7 +726,7 @@ fn run_copy(
             break;
         }
         let desired = destination_root.join(&copy_file.relative);
-        if path_text(&desired).encode_utf16().count() > WINDOWS_SAFE_PATH_LENGTH {
+        if exceeds_safe_path_length(&desired) {
             errors.push(format!(
                 "O caminho de destino é muito longo: {}",
                 path_text(&desired)
@@ -923,6 +1010,34 @@ mod tests {
         assert!(validate_windows_name("CON").is_err());
         assert!(validate_windows_name("com1.txt").is_err());
         assert!(validate_windows_name("nome.").is_err());
+    }
+
+    #[test]
+    fn finds_google_drive_accounts_in_macos_cloud_storage_layout() {
+        let root = std::env::temp_dir().join(format!("packdrive-cloud-test-{}", Uuid::new_v4()));
+        let account = root.join("GoogleDrive-contato@example.com");
+        let my_drive = account.join("My Drive");
+        let shared_drives = account.join("Shared drives");
+        fs::create_dir_all(&my_drive).expect("create My Drive folder");
+        fs::create_dir_all(&shared_drives).expect("create Shared drives folder");
+
+        let mut candidates = Vec::new();
+        let mut seen = HashSet::new();
+        assert!(add_drive_folder_children(
+            &mut candidates,
+            &mut seen,
+            &account,
+            "macOS test",
+        ));
+        assert_eq!(candidates.len(), 2);
+        assert!(candidates
+            .iter()
+            .any(|candidate| candidate.path == path_text(&my_drive)));
+        assert!(candidates
+            .iter()
+            .any(|candidate| candidate.path == path_text(&shared_drives)));
+
+        fs::remove_dir_all(root).expect("remove test folder");
     }
 
     #[test]
