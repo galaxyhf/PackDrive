@@ -333,6 +333,11 @@ button:disabled {
   overflow: hidden;
 }
 
+.content.settings-content {
+  overflow: hidden;
+  padding-block: 18px;
+}
+
 .notice {
   position: fixed;
   z-index: var(--z-toast);
@@ -1357,14 +1362,24 @@ input::placeholder {
 
 .settings-page {
   display: flex;
+  height: 100%;
   max-width: 870px;
   margin: 0 auto;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
 }
 
 .settings-section {
   overflow: hidden;
+}
+
+.settings-content .settings-heading {
+  padding: 12px 16px;
+}
+
+.settings-content .setting-row {
+  min-height: 62px;
+  padding: 10px 16px;
 }
 
 .settings-heading {
@@ -1413,6 +1428,13 @@ input::placeholder {
   font-size: 10px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.setting-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
 }
 
 .settings-page select {

@@ -365,6 +365,7 @@ function App() {
   const [atendimento, setAtendimento] = useState("");
   const [dragging, setDragging] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [driveDetectionLoading, setDriveDetectionLoading] = useState(false);
   const [driveValidation, setDriveValidation] =
     useState<DestinationValidation | null>(null);
   const [driveContentPath, setDriveContentPath] = useState("");
@@ -638,6 +639,36 @@ function App() {
     });
     if (typeof selected === "string") {
       await configureDriveLocation(selected);
+    }
+  }
+
+  async function detectDriveAgain() {
+    setDriveDetectionLoading(true);
+    try {
+      const candidates = await invoke<DriveCandidate[]>("detect_google_drives");
+      setDetected(candidates);
+      const candidate = candidates[0];
+
+      if (!candidate) {
+        setNotice({
+          type: "info",
+          message: "O Google Drive ainda não foi localizado neste computador.",
+        });
+        return;
+      }
+
+      await configureDriveLocation(candidate.path);
+      setNotice({
+        type: "success",
+        message: "Google Drive localizado e configurado automaticamente.",
+      });
+    } catch (error) {
+      setNotice({
+        type: "error",
+        message: `Não foi possível verificar o Google Drive: ${String(error)}`,
+      });
+    } finally {
+      setDriveDetectionLoading(false);
     }
   }
 
@@ -1024,7 +1055,11 @@ function App() {
           </div>
         </header>
 
-        <div className={`content ${screen === "quick" ? "quick-content" : ""}`}>
+        <div
+          className={`content ${screen === "quick" ? "quick-content" : ""} ${
+            screen === "settings" ? "settings-content" : ""
+          }`}
+        >
           {notice && (
             <div className={`notice ${notice.type}`} role="status">
               {notice.type === "success" ? (
@@ -1503,10 +1538,31 @@ function App() {
                           : "O Google Drive ainda não foi localizado.")}
                     </span>
                   </div>
-                  <button className="button secondary" onClick={() => void chooseDrivePath()}>
-                    <FolderOpen size={16} />
-                    Alterar localização
-                  </button>
+                  <div className="setting-actions">
+                    {!settings.drivePath && detected.length === 0 && (
+                      <button
+                        className="button secondary"
+                        disabled={driveDetectionLoading}
+                        onClick={() => void detectDriveAgain()}
+                      >
+                        {driveDetectionLoading ? (
+                          <LoaderCircle className="spin" size={16} />
+                        ) : (
+                          <RefreshCw size={16} />
+                        )}
+                        {driveDetectionLoading ? "Verificando…" : "Verificar novamente"}
+                      </button>
+                    )}
+                    <button
+                      className="button secondary"
+                      onClick={() => void chooseDrivePath()}
+                    >
+                      <FolderOpen size={16} />
+                      {settings.drivePath
+                        ? "Alterar localização"
+                        : "Selecionar manualmente"}
+                    </button>
+                  </div>
                 </div>
                 {!settings.drivePath && detected.length > 0 && (
                   <div className="detected-list">
