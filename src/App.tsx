@@ -441,12 +441,25 @@ function App() {
   );
 
   useEffect(() => {
+    const bootTimeout = window.setTimeout(() => setLoading(false), 5000);
     void (async () => {
       try {
-        const [savedSettings, savedHistory, candidates] = await Promise.all([
+        const [savedSettings, savedHistory] = await Promise.all([
           readSettings(),
           readHistory(),
+        ]);
+        setSettings(savedSettings);
+        setHistory(savedHistory);
+        setCurrentDirectory(savedSettings.drivePath);
+        setSelectedDirectory(savedSettings.drivePath);
+        setLoading(false);
+        if (!savedSettings.drivePath) {
+          setScreen("settings");
+        }
+
+        const [candidates] = await Promise.all([
           invoke<DriveCandidate[]>("detect_google_drives"),
+          validateConfiguredDestination(savedSettings),
         ]);
         const detectedRoot = candidates.find((candidate) =>
           savedSettings.drivePath
@@ -461,11 +474,12 @@ function App() {
         }
 
         setSettings(resolvedSettings);
-        setHistory(savedHistory);
         setDetected(candidates);
         setCurrentDirectory(drivePath);
         setSelectedDirectory(drivePath);
-        await validateConfiguredDestination(resolvedSettings);
+        if (drivePath !== savedSettings.drivePath) {
+          await validateConfiguredDestination(resolvedSettings);
+        }
         if (!drivePath) {
           setScreen("settings");
           setNotice({
@@ -481,9 +495,11 @@ function App() {
       } catch (error) {
         setNotice({ type: "error", message: String(error) });
       } finally {
+        window.clearTimeout(bootTimeout);
         setLoading(false);
       }
     })();
+    return () => window.clearTimeout(bootTimeout);
   }, [validateConfiguredDestination]);
 
   useEffect(() => {

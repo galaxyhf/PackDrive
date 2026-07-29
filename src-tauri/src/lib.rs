@@ -18,6 +18,7 @@ use std::process::Command;
 
 const COPY_BUFFER_SIZE: usize = 1024 * 1024;
 const WINDOWS_SAFE_PATH_LENGTH: usize = 240;
+const COLLECTION_FOLDER_NAME: &str = "Coleta";
 const DRIVE_FOLDER_LABELS: [&str; 8] = [
     "Google Drive",
     "Meu Drive",
@@ -269,8 +270,7 @@ fn add_google_drive_account_roots(
     }
 }
 
-#[tauri::command]
-fn detect_google_drives() -> Vec<DriveCandidate> {
+fn find_google_drives() -> Vec<DriveCandidate> {
     let mut candidates = Vec::new();
     let mut seen = HashSet::new();
 
@@ -372,6 +372,13 @@ fn detect_google_drives() -> Vec<DriveCandidate> {
 }
 
 #[tauri::command]
+async fn detect_google_drives() -> Result<Vec<DriveCandidate>, String> {
+    tauri::async_runtime::spawn_blocking(find_google_drives)
+        .await
+        .map_err(|error| format!("Não foi possível detectar o Google Drive: {error}"))
+}
+
+#[tauri::command]
 fn resolve_drive_content_path(drive_root: String) -> Result<String, String> {
     let root = canonical_directory(Path::new(&drive_root))?;
     for label in ["Meu Drive", "My Drive"] {
@@ -421,17 +428,21 @@ fn build_quick_destinations(drive_root: &Path) -> Result<QuickDestinations, Stri
             .unwrap_or_else(|| root.clone())
     });
 
-    let mut directories = WalkDir::new(&root)
-        .follow_links(false)
-        .into_iter()
-        .filter_entry(|entry| {
-            entry.depth() == 0 || !entry.file_name().to_string_lossy().starts_with('.')
-        })
-        .filter_map(Result::ok)
-        .filter(|entry| entry.file_type().is_dir())
-        .map(|entry| {
+    let mut paths = vec![root.clone()];
+    if let Ok(entries) = fs::read_dir(&root) {
+        paths.extend(entries.filter_map(Result::ok).filter_map(|entry| {
             let path = entry.path();
-            let relative = path.strip_prefix(&root).unwrap_or(path);
+            (!entry.file_name().to_string_lossy().starts_with('.') && path.is_dir()).then_some(path)
+        }));
+    }
+    if !paths.contains(&default_path) {
+        paths.push(default_path.clone());
+    }
+
+    let mut directories = paths
+        .into_iter()
+        .map(|path| {
+            let relative = path.strip_prefix(&root).unwrap_or(&path);
             let label = if relative.as_os_str().is_empty() {
                 "Google Drive".into()
             } else {
@@ -442,7 +453,7 @@ fn build_quick_destinations(drive_root: &Path) -> Result<QuickDestinations, Stri
                     .join(" / ")
             };
             DirectoryChoice {
-                path: path_text(path),
+                path: path_text(&path),
                 label,
             }
         })
@@ -611,6 +622,7 @@ fn prepare_destination(
     folder_name: Option<String>,
 ) -> Result<String, String> {
     let (root, parent) = ensure_inside(Path::new(&allowed_root), Path::new(&parent))?;
+    let is_atendimento_folder = folder_name.is_some();
     let target = if let Some(name) = folder_name {
         validate_windows_name(&name)?;
         parent.join(name)
@@ -622,6 +634,10 @@ fn prepare_destination(
     }
     fs::create_dir_all(&target)
         .map_err(|error| format!("Não foi possível preparar o destino: {error}"))?;
+    if is_atendimento_folder {
+        fs::create_dir_all(target.join(COLLECTION_FOLDER_NAME))
+            .map_err(|error| format!("Não foi possível criar a pasta Coleta: {error}"))?;
+    }
     Ok(path_text(&target))
 }
 
@@ -1168,6 +1184,26 @@ mod tests {
     }
 
     #[test]
+    fn creates_collection_folder_inside_atendimento_destination() {
+        let root =
+            std::env::temp_dir().join(format!("packdrive-destination-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&root).expect("create destination root");
+
+        let destination = prepare_destination(
+            path_text(&root),
+            path_text(&root),
+            Some("[1234567890]".into()),
+        )
+        .expect("prepare atendimento destination");
+        let destination = PathBuf::from(destination);
+
+        assert!(destination.is_dir());
+        assert!(destination.join(COLLECTION_FOLDER_NAME).is_dir());
+
+        fs::remove_dir_all(root).expect("remove destination test root");
+    }
+
+    #[test]
     fn finds_google_drive_accounts_in_macos_cloud_storage_layout() {
         let root = std::env::temp_dir().join(format!("packdrive-cloud-test-{}", Uuid::new_v4()));
         let account = root.join("GoogleDrive-contato@example.com");
@@ -1229,8 +1265,10 @@ mod tests {
             .join("IMPLANTAÇÃO")
             .join("PACK");
         let hidden = root.join(".interno");
+        let unrelated_nested = root.join("Outro destino").join("Subpasta");
         fs::create_dir_all(&pack).expect("create preferred quick destination");
         fs::create_dir_all(&hidden).expect("create hidden directory");
+        fs::create_dir_all(&unrelated_nested).expect("create unrelated nested directory");
 
         let choices = build_quick_destinations(&root).expect("list quick destinations");
         assert_eq!(
@@ -1245,6 +1283,10 @@ mod tests {
             .directories
             .iter()
             .any(|directory| directory.label.contains(".interno")));
+        assert!(!choices
+            .directories
+            .iter()
+            .any(|directory| directory.path == path_text(&unrelated_nested)));
 
         fs::remove_dir_all(root).expect("remove quick destination test root");
     }
