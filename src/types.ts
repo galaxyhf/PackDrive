@@ -6,6 +6,7 @@ export interface AppSettings {
   quickDestinationPath: string;
   duplicateBehavior: DuplicateBehavior;
   openAfterComplete: boolean;
+  minimizeToTray: boolean;
   historyLimit: number;
 }
 
@@ -106,5 +107,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
   quickDestinationPath: "",
   duplicateBehavior: "rename",
   openAfterComplete: true,
+  minimizeToTray: false,
   historyLimit: 100,
 };

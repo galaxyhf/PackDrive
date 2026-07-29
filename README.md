@@ -39,6 +39,7 @@ O aplicativo funciona no Windows e no macOS. O pacote deve ser compilado para a 
 - Arquivos temporários `.uploading` para evitar a sincronização de conteúdo incompleto.
 - Políticas para duplicados: renomear, substituir, ignorar ou perguntar.
 - Histórico local com abertura do destino, repetição do envio e cópia do caminho.
+- Opção para manter o aplicativo em segundo plano na bandeja ao fechar a janela.
 - Preferências e histórico persistidos localmente com o plugin Store do Tauri.
 
 ## Como funciona
@@ -163,6 +164,15 @@ Na primeira execução:
 5. O aplicativo valida existência, acesso, permissão de escrita e espaço disponível.
 
 As configurações são armazenadas pelo plugin Store no diretório de dados do aplicativo definido pelo sistema operacional. Nenhuma conta ou credencial do Google é armazenada.
+
+### Execução em segundo plano
+
+Em **Configurações**, a opção **Continuar na bandeja ao fechar** define o comportamento do botão X:
+
+- ativada: a janela é ocultada e o PackDrive continua aberto na bandeja; use **Fechar PackDrive** no menu da bandeja para encerrar o processo;
+- desativada: o botão X encerra o aplicativo normalmente.
+
+Clique no ícone da bandeja para reabrir a janela no Windows.
 
 ## Comportamento das transferências
 

@@ -478,6 +478,9 @@ function App() {
         ]);
         setSettings(savedSettings);
         setHistory(savedHistory);
+        await invoke("set_minimize_to_tray", {
+          enabled: savedSettings.minimizeToTray,
+        });
         setCurrentDirectory(savedSettings.drivePath);
         setSelectedDirectory(savedSettings.drivePath);
         setLoading(false);
@@ -614,6 +617,9 @@ function App() {
   async function saveSettings(next: AppSettings) {
     setSettings(next);
     await writeSettings(next);
+    await invoke("set_minimize_to_tray", {
+      enabled: next.minimizeToTray,
+    });
     await validateConfiguredDestination(next);
   }
 
@@ -932,7 +938,7 @@ function App() {
       paths: entry.sourcePaths,
     });
     setQuickItems(inspected);
-    setAtendimento(entry.atendimento);
+    setAtendimento(entry.atendimento.replace(/\D/g, "").slice(0, 10));
     setScreen(entry.atendimento ? "quick" : "browse");
     setNotice({
       type: "info",
@@ -949,6 +955,7 @@ function App() {
     setQuickDirectories([]);
     setCurrentDirectory("");
     setSelectedDirectory("");
+    await invoke("set_minimize_to_tray", { enabled: false });
     setNotice({ type: "info", message: "Configurações locais restauradas." });
   }
 
@@ -1117,7 +1124,7 @@ function App() {
                 <div className="section-heading">
                   <div>
                     <h2 id="ticket-title">Número do atendimento</h2>
-                    <p>Digite somente os números</p>
+                    <p>Digite até 10 números</p>
                   </div>
                   <span className="step-chip">Etapa 1</span>
                 </div>
@@ -1130,7 +1137,9 @@ function App() {
                       autoFocus
                       value={atendimento}
                       onChange={(event) =>
-                        setAtendimento(event.target.value.replace(/\D/g, ""))
+                        setAtendimento(
+                          event.target.value.replace(/\D/g, "").slice(0, 10),
+                        )
                       }
                       placeholder="Ex.: 1234567890"
                     />
@@ -1631,8 +1640,8 @@ function App() {
                     <SlidersHorizontal size={19} />
                   </div>
                   <div>
-                    <h2>Comportamento dos envios</h2>
-                    <p>Preferências aplicadas ao modo rápido e manual</p>
+                    <h2>Comportamento do aplicativo</h2>
+                    <p>Preferências dos envios e da janela</p>
                   </div>
                 </div>
                 <div className="setting-row">
@@ -1671,6 +1680,28 @@ function App() {
                         void saveSettings({
                           ...settings,
                           openAfterComplete: event.target.checked,
+                        })
+                      }
+                    />
+                    <span aria-hidden="true" />
+                  </label>
+                </div>
+                <div className="setting-row">
+                  <div>
+                    <label htmlFor="minimize-to-tray">Continuar na bandeja ao fechar</label>
+                    <span>
+                      O X oculta o PackDrive; para encerrar, use o menu da bandeja.
+                    </span>
+                  </div>
+                  <label className="switch">
+                    <input
+                      id="minimize-to-tray"
+                      type="checkbox"
+                      checked={settings.minimizeToTray}
+                      onChange={(event) =>
+                        void saveSettings({
+                          ...settings,
+                          minimizeToTray: event.target.checked,
                         })
                       }
                     />

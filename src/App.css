@@ -1405,8 +1405,8 @@ input::placeholder {
 }
 
 .settings-content .setting-row {
-  min-height: 62px;
-  padding: 10px 16px;
+  min-height: 56px;
+  padding: 8px 16px;
 }
 
 .settings-heading {

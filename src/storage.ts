@@ -18,6 +18,8 @@ export async function readSettings(): Promise<AppSettings> {
       saved?.duplicateBehavior ?? DEFAULT_SETTINGS.duplicateBehavior,
     openAfterComplete:
       saved?.openAfterComplete ?? DEFAULT_SETTINGS.openAfterComplete,
+    minimizeToTray:
+      saved?.minimizeToTray ?? DEFAULT_SETTINGS.minimizeToTray,
     historyLimit: saved?.historyLimit ?? DEFAULT_SETTINGS.historyLimit,
   };
 }

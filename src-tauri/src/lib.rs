@@ -4,12 +4,20 @@ use std::{
     fs::{self, File, OpenOptions},
     io::{Read, Write},
     path::{Component, Path, PathBuf},
-    sync::{Arc, Mutex},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex,
+    },
     thread,
     time::{Duration, Instant},
 };
-use tauri::{AppHandle, Emitter, State};
+use tauri::{
+    menu::{Menu, MenuItem},
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    AppHandle, Emitter, Manager, State, WindowEvent,
+};
 use tauri_plugin_opener::OpenerExt;
+use tauri_plugin_store::StoreExt;
 use uuid::Uuid;
 use walkdir::WalkDir;
 
@@ -34,6 +42,11 @@ const DRIVE_FOLDER_LABELS: [&str; 8] = [
 struct TransferState {
     cancelled: Arc<Mutex<HashSet<String>>>,
     duplicate_answers: Arc<Mutex<HashMap<String, String>>>,
+}
+
+#[derive(Default)]
+struct AppBehaviorState {
+    minimize_to_tray: AtomicBool,
 }
 
 #[derive(Debug, Serialize)]
@@ -1148,13 +1161,86 @@ fn resolve_duplicate(
     Ok(())
 }
 
+#[tauri::command]
+fn set_minimize_to_tray(enabled: bool, state: State<'_, AppBehaviorState>) {
+    state.minimize_to_tray.store(enabled, Ordering::Relaxed);
+}
+
+fn show_main_window(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .manage(TransferState::default())
+        .manage(AppBehaviorState::default())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::default().build())
+        .setup(|app| {
+            let minimize_to_tray = app
+                .store("packdrive.json")?
+                .get("settings")
+                .and_then(|settings| {
+                    settings
+                        .get("minimizeToTray")
+                        .and_then(serde_json::Value::as_bool)
+                })
+                .unwrap_or(false);
+            app.state::<AppBehaviorState>()
+                .minimize_to_tray
+                .store(minimize_to_tray, Ordering::Relaxed);
+
+            let open_item =
+                MenuItem::with_id(app, "tray_open", "Abrir PackDrive", true, None::<&str>)?;
+            let quit_item =
+                MenuItem::with_id(app, "tray_quit", "Fechar PackDrive", true, None::<&str>)?;
+            let menu = Menu::with_items(app, &[&open_item, &quit_item])?;
+            let tray_builder = TrayIconBuilder::new()
+                .menu(&menu)
+                .tooltip("PackDrive")
+                .show_menu_on_left_click(cfg!(target_os = "macos"))
+                .on_menu_event(|app, event| {
+                    if event.id() == "tray_open" {
+                        show_main_window(app);
+                    } else if event.id() == "tray_quit" {
+                        app.exit(0);
+                    }
+                })
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        ..
+                    } = event
+                    {
+                        show_main_window(tray.app_handle());
+                    }
+                });
+            let tray_builder = if let Some(icon) = app.default_window_icon() {
+                tray_builder.icon(icon.clone())
+            } else {
+                tray_builder
+            };
+            tray_builder.build(app)?;
+            Ok(())
+        })
+        .on_window_event(|window, event| {
+            if window.label() != "main" {
+                return;
+            }
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                let state = window.state::<AppBehaviorState>();
+                if state.minimize_to_tray.load(Ordering::Relaxed) && window.hide().is_ok() {
+                    api.prevent_close();
+                }
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             detect_google_drives,
             resolve_drive_content_path,
@@ -1169,6 +1255,7 @@ pub fn run() {
             start_copy,
             cancel_copy,
             resolve_duplicate,
+            set_minimize_to_tray,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
