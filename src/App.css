@@ -275,14 +275,21 @@ button:disabled {
 }
 
 .header-drive {
-  display: grid;
-  grid-template-columns: auto minmax(80px, 190px) 32px;
+  display: flex;
   align-items: center;
   gap: 10px;
 }
 
-.header-drive > span:nth-child(2) {
+.header-drive-info {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.header-drive-info > span:last-child {
   overflow: hidden;
+  max-width: 190px;
   color: var(--text-muted);
   font-size: 10.5px;
   text-align: right;
@@ -317,8 +324,13 @@ button:disabled {
 .content {
   position: relative;
   flex: 1;
+  min-height: 0;
   overflow: auto;
   padding: 24px 28px 30px;
+}
+
+.content.quick-content {
+  overflow: hidden;
 }
 
 .notice {
@@ -367,7 +379,9 @@ button:disabled {
 .quick-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 265px;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 18px;
+  height: 100%;
   max-width: 1120px;
   margin: 0 auto;
 }
@@ -420,16 +434,10 @@ button:disabled {
   border-color: var(--accent);
 }
 
-.quick-destination-field > span {
-  overflow-wrap: anywhere;
-  color: var(--text-muted);
-  font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
-  font-size: 9px;
-  line-height: 1.4;
-}
-
 .files-section {
-  min-height: 345px;
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
   padding: 18px 20px 20px;
 }
 
@@ -553,7 +561,8 @@ input::placeholder {
 
 .drop-zone {
   display: flex;
-  min-height: 270px;
+  min-height: 0;
+  flex: 1;
   align-items: center;
   justify-content: center;
   flex-direction: column;
@@ -704,8 +713,9 @@ input::placeholder {
 
 .file-list {
   position: relative;
-  min-height: 275px;
-  overflow: hidden;
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
 }
@@ -1881,6 +1891,14 @@ input::placeholder {
   .quick-layout,
   .browser-layout {
     grid-template-columns: 1fr;
+  }
+
+  .content.quick-content {
+    overflow: auto;
+  }
+
+  .quick-layout {
+    height: auto;
   }
 
   .send-summary {

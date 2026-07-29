@@ -96,15 +96,17 @@ function formatDuration(milliseconds: number): string {
 }
 
 function parentPath(path: string): string {
-  const separator = path.includes("\\") ? "\\" : "/";
-  const parts = path.split(/[\\/]/).filter(Boolean);
-  if (parts.length <= 1) return path;
-  const drivePrefix = path.match(/^[A-Za-z]:/)?.[0] ?? "";
-  parts.pop();
-  if (drivePrefix) {
-    return `${drivePrefix}${separator}${parts.slice(1).join(separator)}`;
-  }
-  return `${path.startsWith("/") ? "/" : ""}${parts.join(separator)}`;
+  const trimmed = path.replace(/[\\/]+$/, "");
+  const lastSeparator = Math.max(
+    trimmed.lastIndexOf("/"),
+    trimmed.lastIndexOf("\\"),
+  );
+  if (lastSeparator < 0) return path;
+
+  const parent = trimmed.slice(0, lastSeparator);
+  if (!parent) return path.startsWith("/") ? "/" : path;
+  if (/^(?:\\\\\?\\)?[A-Za-z]:$/.test(parent)) return `${parent}\\`;
+  return parent;
 }
 
 function pathName(path: string): string {
@@ -112,11 +114,27 @@ function pathName(path: string): string {
   return parts[parts.length - 1] ?? path;
 }
 
+function displayPath(path: string): string {
+  if (path.startsWith("\\\\?\\UNC\\")) {
+    return `\\\\${path.slice(8)}`;
+  }
+  if (path.startsWith("\\\\?\\")) {
+    return path.slice(4);
+  }
+  return path;
+}
+
+function normalizePath(path: string): string {
+  return path.replace(/\\/g, "/").replace(/\/+$/, "").toLocaleLowerCase();
+}
+
+function isSamePath(path: string, otherPath: string): boolean {
+  return normalizePath(path) === normalizePath(otherPath);
+}
+
 function isPathInside(path: string, root: string): boolean {
-  const normalize = (value: string) =>
-    value.replace(/\\/g, "/").replace(/\/+$/, "").toLocaleLowerCase();
-  const normalizedPath = normalize(path);
-  const normalizedRoot = normalize(root);
+  const normalizedPath = normalizePath(path);
+  const normalizedRoot = normalizePath(root);
   return (
     normalizedPath === normalizedRoot ||
     normalizedPath.startsWith(`${normalizedRoot}/`)
@@ -856,7 +874,7 @@ function App() {
   function navigateUp() {
     if (
       !currentDirectory ||
-      currentDirectory === settings.drivePath
+      isSamePath(currentDirectory, settings.drivePath)
     )
       return;
     const parent = parentPath(currentDirectory);
@@ -967,7 +985,7 @@ function App() {
           <div>
             <strong>{connected ? "Drive conectado" : "Drive requer atenção"}</strong>
             <span title={settings.drivePath}>
-              {settings.drivePath || "Localização não configurada"}
+              {displayPath(settings.drivePath) || "Localização não configurada"}
             </span>
           </div>
         </div>
@@ -986,13 +1004,15 @@ function App() {
             </p>
           </div>
           <div className="header-drive">
-            <StatusPill
-              connected={connected}
-              message={connected ? "Drive conectado" : "Verificar Drive"}
-            />
-            <span title={settings.drivePath}>
-              {settings.drivePath || "Google Drive não localizado"}
-            </span>
+            <div className="header-drive-info">
+              <StatusPill
+                connected={connected}
+                message={connected ? "Drive conectado" : "Verificar Drive"}
+              />
+              <span title={settings.drivePath}>
+                {displayPath(settings.drivePath) || "Google Drive não localizado"}
+              </span>
+            </div>
             <button
               className="icon-button"
               aria-label="Abrir pasta do Google Drive"
@@ -1004,7 +1024,7 @@ function App() {
           </div>
         </header>
 
-        <div className="content">
+        <div className={`content ${screen === "quick" ? "quick-content" : ""}`}>
           {notice && (
             <div className={`notice ${notice.type}`} role="status">
               {notice.type === "success" ? (
@@ -1046,9 +1066,6 @@ function App() {
                       ))
                     )}
                   </select>
-                  <span title={quickDestinationPath}>
-                    {quickDestinationPath || "Nenhuma pasta disponível"}
-                  </span>
                 </div>
                 <div className="section-heading">
                   <div>
@@ -1136,7 +1153,8 @@ function App() {
                 <div className="destination-box">
                   <span>Destino</span>
                   <strong title={quickDestinationPath || settings.drivePath}>
-                    {quickDestinationPath || settings.drivePath || "Google Drive não localizado"}
+                    {displayPath(quickDestinationPath || settings.drivePath) ||
+                      "Google Drive não localizado"}
                   </strong>
                   <span>{atendimento ? `[${atendimento}]` : "[número]"}</span>
                 </div>
@@ -1173,7 +1191,7 @@ function App() {
                   <button
                     className="icon-button"
                     aria-label="Voltar para a pasta anterior"
-                    disabled={currentDirectory === settings.drivePath}
+                    disabled={isSamePath(currentDirectory, settings.drivePath)}
                     onClick={navigateUp}
                   >
                     <ArrowLeft size={17} />
@@ -1188,7 +1206,7 @@ function App() {
                   <div className="breadcrumb" title={currentDirectory}>
                     <HardDrive size={15} />
                     <span>{pathName(settings.drivePath) || "Drive"}</span>
-                    {currentDirectory !== settings.drivePath && (
+                    {!isSamePath(currentDirectory, settings.drivePath) && (
                       <>
                         <ChevronRight size={14} />
                         <strong>{pathName(currentDirectory)}</strong>

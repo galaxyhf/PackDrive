@@ -403,6 +403,19 @@ fn find_child_directory(parent: &Path, names: &[&str]) -> Option<PathBuf> {
     })
 }
 
+fn visible_child_directories(parent: &Path) -> Vec<PathBuf> {
+    let Ok(entries) = fs::read_dir(parent) else {
+        return Vec::new();
+    };
+    entries
+        .filter_map(Result::ok)
+        .filter_map(|entry| {
+            let path = entry.path();
+            (!entry.file_name().to_string_lossy().starts_with('.') && path.is_dir()).then_some(path)
+        })
+        .collect()
+}
+
 fn build_quick_destinations(drive_root: &Path) -> Result<QuickDestinations, String> {
     let root = canonical_directory(drive_root)?;
     let preferred_path = find_child_directory(
@@ -418,7 +431,7 @@ fn build_quick_destinations(drive_root: &Path) -> Result<QuickDestinations, Stri
     .and_then(|control| find_child_directory(&control, &["IMPLANTAÇÃO"]))
     .and_then(|deployment| find_child_directory(&deployment, &["PACK"]));
 
-    let default_path = preferred_path.unwrap_or_else(|| {
+    let standard_path = || {
         ["Meu Drive", "My Drive"]
             .iter()
             .find_map(|label| {
@@ -426,32 +439,21 @@ fn build_quick_destinations(drive_root: &Path) -> Result<QuickDestinations, Stri
                 path.is_dir().then_some(path)
             })
             .unwrap_or_else(|| root.clone())
-    });
+    };
 
-    let mut paths = vec![root.clone()];
-    if let Ok(entries) = fs::read_dir(&root) {
-        paths.extend(entries.filter_map(Result::ok).filter_map(|entry| {
-            let path = entry.path();
-            (!entry.file_name().to_string_lossy().starts_with('.') && path.is_dir()).then_some(path)
-        }));
-    }
-    if !paths.contains(&default_path) {
-        paths.push(default_path.clone());
+    let base_path = preferred_path.unwrap_or_else(standard_path);
+    let mut paths = visible_child_directories(&base_path);
+    if paths.is_empty() {
+        paths.push(base_path);
     }
 
     let mut directories = paths
         .into_iter()
         .map(|path| {
-            let relative = path.strip_prefix(&root).unwrap_or(&path);
-            let label = if relative.as_os_str().is_empty() {
-                "Google Drive".into()
-            } else {
-                relative
-                    .components()
-                    .map(|component| component.as_os_str().to_string_lossy())
-                    .collect::<Vec<_>>()
-                    .join(" / ")
-            };
+            let label = path
+                .file_name()
+                .map(|name| name.to_string_lossy().into_owned())
+                .unwrap_or_else(|| path_text(&path));
             DirectoryChoice {
                 path: path_text(&path),
                 label,
@@ -459,9 +461,13 @@ fn build_quick_destinations(drive_root: &Path) -> Result<QuickDestinations, Stri
         })
         .collect::<Vec<_>>();
     directories.sort_by_key(|directory| directory.label.to_lowercase());
+    let default_path = directories
+        .first()
+        .map(|directory| directory.path.clone())
+        .unwrap_or_default();
 
     Ok(QuickDestinations {
-        default_path: path_text(&default_path),
+        default_path,
         directories,
     })
 }
@@ -1257,28 +1263,29 @@ mod tests {
     }
 
     #[test]
-    fn selects_pack_as_the_default_quick_destination() {
+    fn lists_children_of_pack_as_quick_destinations() {
         let root = std::env::temp_dir().join(format!("packdrive-quick-test-{}", Uuid::new_v4()));
         let pack = root
             .join("Drives compartilhados")
             .join("CONTROLE DE PROPRIEDADES DE TERCEIROS")
             .join("IMPLANTAÇÃO")
             .join("PACK");
-        let hidden = root.join(".interno");
+        let customer_a = pack.join("Cliente A");
+        let customer_b = pack.join("Cliente B");
+        let hidden = pack.join(".interno");
         let unrelated_nested = root.join("Outro destino").join("Subpasta");
-        fs::create_dir_all(&pack).expect("create preferred quick destination");
+        fs::create_dir_all(&customer_a).expect("create first PACK child");
+        fs::create_dir_all(&customer_b).expect("create second PACK child");
         fs::create_dir_all(&hidden).expect("create hidden directory");
         fs::create_dir_all(&unrelated_nested).expect("create unrelated nested directory");
 
         let choices = build_quick_destinations(&root).expect("list quick destinations");
         assert_eq!(
             choices.default_path,
-            path_text(&pack.canonicalize().expect("canonical PACK path"))
+            path_text(&customer_a.canonicalize().expect("canonical customer path"))
         );
-        assert!(choices
-            .directories
-            .iter()
-            .any(|directory| directory.path == choices.default_path));
+        assert!(choices.directories.iter().any(|directory| directory.path
+            == path_text(&customer_b.canonicalize().expect("canonical customer path"))));
         assert!(!choices
             .directories
             .iter()
@@ -1287,6 +1294,29 @@ mod tests {
             .directories
             .iter()
             .any(|directory| directory.path == path_text(&unrelated_nested)));
+
+        fs::remove_dir_all(root).expect("remove quick destination test root");
+    }
+
+    #[test]
+    fn falls_back_to_children_of_standard_drive_path() {
+        let root = std::env::temp_dir().join(format!("packdrive-quick-test-{}", Uuid::new_v4()));
+        let standard = root.join("Meu Drive");
+        let first = standard.join("Atendimentos");
+        let second = standard.join("Projetos");
+        fs::create_dir_all(&first).expect("create first standard child");
+        fs::create_dir_all(&second).expect("create second standard child");
+
+        let choices = build_quick_destinations(&root).expect("list fallback destinations");
+        assert_eq!(choices.directories.len(), 2);
+        assert!(choices
+            .directories
+            .iter()
+            .any(|directory| directory.label == "Atendimentos"));
+        assert!(choices
+            .directories
+            .iter()
+            .any(|directory| directory.label == "Projetos"));
 
         fs::remove_dir_all(root).expect("remove quick destination test root");
     }
