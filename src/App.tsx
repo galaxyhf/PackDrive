@@ -8,6 +8,7 @@ import {
   ArrowLeft,
   Check,
   CheckCircle2,
+  ChevronDown,
   ChevronRight,
   CircleAlert,
   Clock3,
@@ -125,7 +126,15 @@ function displayPath(path: string): string {
 }
 
 function normalizePath(path: string): string {
-  return path.replace(/\\/g, "/").replace(/\/+$/, "").toLocaleLowerCase();
+  const comparablePath = path.startsWith("\\\\?\\UNC\\")
+    ? `\\\\${path.slice(8)}`
+    : path.startsWith("\\\\?\\")
+      ? path.slice(4)
+      : path;
+  return comparablePath
+    .replace(/\\/g, "/")
+    .replace(/\/+$/, "")
+    .toLocaleLowerCase();
 }
 
 function isSamePath(path: string, otherPath: string): boolean {
@@ -1083,24 +1092,27 @@ function App() {
                   <label htmlFor="quick-destination">
                     Pasta de destino
                   </label>
-                  <select
-                    id="quick-destination"
-                    value={settings.quickDestinationPath}
-                    disabled={quickDirectoriesLoading || !quickDirectories.length}
-                    onChange={(event) =>
-                      void selectQuickDestination(event.target.value)
-                    }
-                  >
-                    {quickDirectoriesLoading ? (
-                      <option value="">Carregando pastas do Drive…</option>
-                    ) : (
-                      quickDirectories.map((directory) => (
-                        <option key={directory.path} value={directory.path}>
-                          {directory.label}
-                        </option>
-                      ))
-                    )}
-                  </select>
+                  <div className="quick-destination-select">
+                    <select
+                      id="quick-destination"
+                      value={settings.quickDestinationPath}
+                      disabled={quickDirectoriesLoading || !quickDirectories.length}
+                      onChange={(event) =>
+                        void selectQuickDestination(event.target.value)
+                      }
+                    >
+                      {quickDirectoriesLoading ? (
+                        <option value="">Carregando pastas do Drive…</option>
+                      ) : (
+                        quickDirectories.map((directory) => (
+                          <option key={directory.path} value={directory.path}>
+                            {directory.label}
+                          </option>
+                        ))
+                      )}
+                    </select>
+                    <ChevronDown aria-hidden="true" size={16} strokeWidth={2} />
+                  </div>
                 </div>
                 <div className="section-heading">
                   <div>
