@@ -653,11 +653,15 @@ fn prepare_destination(
     }
     fs::create_dir_all(&target)
         .map_err(|error| format!("Não foi possível preparar o destino: {error}"))?;
-    if is_atendimento_folder {
-        fs::create_dir_all(target.join(COLLECTION_FOLDER_NAME))
+    let destination = if is_atendimento_folder {
+        let collection = target.join(COLLECTION_FOLDER_NAME);
+        fs::create_dir_all(&collection)
             .map_err(|error| format!("Não foi possível criar a pasta Coleta: {error}"))?;
-    }
-    Ok(path_text(&target))
+        collection
+    } else {
+        target
+    };
+    Ok(path_text(&destination))
 }
 
 #[tauri::command]
@@ -1291,7 +1295,14 @@ mod tests {
         let destination = PathBuf::from(destination);
 
         assert!(destination.is_dir());
-        assert!(destination.join(COLLECTION_FOLDER_NAME).is_dir());
+        assert_eq!(
+            destination,
+            fs::canonicalize(&root)
+                .expect("canonicalize destination root")
+                .join("[1234567890]")
+                .join(COLLECTION_FOLDER_NAME)
+        );
+        assert!(root.join("[1234567890]").is_dir());
 
         fs::remove_dir_all(root).expect("remove destination test root");
     }

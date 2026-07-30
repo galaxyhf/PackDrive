@@ -1212,7 +1212,9 @@ function App() {
                     {displayPath(quickDestinationPath || settings.drivePath) ||
                       "Google Drive não localizado"}
                   </strong>
-                  <span>{atendimento ? `[${atendimento}]` : "[número]"}</span>
+                  <span>
+                    {atendimento ? `[${atendimento}]/Coleta` : "[número]/Coleta"}
+                  </span>
                 </div>
                 <button
                   className="button primary wide"

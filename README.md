@@ -52,7 +52,7 @@ O aplicativo funciona no Windows e no macOS. O pacote deve ser compilado para a 
 4. O usuário informa somente o número do atendimento.
 5. O aplicativo apresenta a pasta que será criada, por exemplo `[1234567890]`.
 6. O usuário seleciona ou arrasta os arquivos e pastas.
-7. O backend cria a pasta no destino escolhido e copia os itens.
+7. O backend cria a pasta do atendimento, cria `Coleta` dentro dela e copia os itens para `Coleta`.
 8. Ao concluir, o envio é registrado no histórico e pode ser aberto no Explorador de Arquivos ou Finder.
 
 Exemplo:
@@ -64,11 +64,11 @@ E:\Google Drive\Drives compartilhados\CONTROLE DE PROPRIEDADES DE TERCEIROS\IMPL
 Atendimento:
 1234567890
 
-Destino:
-E:\Google Drive\Drives compartilhados\CONTROLE DE PROPRIEDADES DE TERCEIROS\IMPLANTAÇÃO\PACK\[1234567890]
+Destino dos arquivos:
+E:\Google Drive\Drives compartilhados\CONTROLE DE PROPRIEDADES DE TERCEIROS\IMPLANTAÇÃO\PACK\[1234567890]\Coleta
 ```
 
-Se a pasta do atendimento já existir, ela não é apagada. Os novos itens são adicionados de acordo com a política de duplicados configurada.
+Se a pasta do atendimento já existir, ela não é apagada. A subpasta `Coleta` é reutilizada ou criada automaticamente, e os novos itens são adicionados nela de acordo com a política de duplicados configurada.
 
 ### Navegação manual
 
