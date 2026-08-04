@@ -1126,7 +1126,6 @@ function App() {
                     <h2 id="ticket-title">Número do atendimento</h2>
                     <p>Digite até 10 números</p>
                   </div>
-                  <span className="step-chip">Etapa 1</span>
                 </div>
                 <div className="ticket-input-row">
                   <div className="field-with-icon">
@@ -1192,18 +1191,6 @@ function App() {
                   <div>
                     <dt>Tamanho total</dt>
                     <dd>{formatBytes(totalQuickBytes)}</dd>
-                  </div>
-                  <div>
-                    <dt>Duplicados</dt>
-                    <dd>
-                      {settings.duplicateBehavior === "rename"
-                        ? "Renomear"
-                        : settings.duplicateBehavior === "replace"
-                          ? "Substituir"
-                          : settings.duplicateBehavior === "skip"
-                            ? "Ignorar"
-                            : "Perguntar"}
-                    </dd>
                   </div>
                 </dl>
                 <div className="destination-box">
