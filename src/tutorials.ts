@@ -162,6 +162,12 @@ export const collectionTutorials: CollectionTutorial[] = [
     sections: [],
   },
   {
+    id: "sci-unico",
+    system: "SCI Único",
+    required: ["VSCI.SDB"],
+    sections: [],
+  },
+  {
     id: "sped-contabil",
     system: "SPED Contábil",
     required: ["SPED.txt"],
@@ -204,12 +210,6 @@ export const collectionTutorials: CollectionTutorial[] = [
     id: "totvs-rm",
     system: "TOTVS RM",
     required: ["Base em SQL Server"],
-    sections: [],
-  },
-  {
-    id: "sci-unico",
-    system: "SCI Único",
-    required: ["VSCI.SDB"],
     sections: [],
   },
 ];
