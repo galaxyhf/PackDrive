@@ -18,6 +18,8 @@ export async function readSettings(): Promise<AppSettings> {
       saved?.duplicateBehavior ?? DEFAULT_SETTINGS.duplicateBehavior,
     openAfterComplete:
       saved?.openAfterComplete ?? DEFAULT_SETTINGS.openAfterComplete,
+    createEnvioFolder:
+      saved?.createEnvioFolder ?? DEFAULT_SETTINGS.createEnvioFolder,
     minimizeToTray:
       saved?.minimizeToTray ?? DEFAULT_SETTINGS.minimizeToTray,
     historyLimit: saved?.historyLimit ?? DEFAULT_SETTINGS.historyLimit,

@@ -27,6 +27,7 @@ use std::process::Command;
 const COPY_BUFFER_SIZE: usize = 1024 * 1024;
 const WINDOWS_SAFE_PATH_LENGTH: usize = 240;
 const COLLECTION_FOLDER_NAME: &str = "Coleta";
+const SEND_FOLDER_NAME: &str = "Envio";
 const DRIVE_FOLDER_LABELS: [&str; 8] = [
     "Google Drive",
     "Meu Drive",
@@ -639,6 +640,7 @@ fn prepare_destination(
     allowed_root: String,
     parent: String,
     folder_name: Option<String>,
+    create_envio_folder: bool,
 ) -> Result<String, String> {
     let (root, parent) = ensure_inside(Path::new(&allowed_root), Path::new(&parent))?;
     let is_atendimento_folder = folder_name.is_some();
@@ -657,6 +659,10 @@ fn prepare_destination(
         let collection = target.join(COLLECTION_FOLDER_NAME);
         fs::create_dir_all(&collection)
             .map_err(|error| format!("Não foi possível criar a pasta Coleta: {error}"))?;
+        if create_envio_folder {
+            fs::create_dir_all(target.join(SEND_FOLDER_NAME))
+                .map_err(|error| format!("Não foi possível criar a pasta Envio: {error}"))?;
+        }
         collection
     } else {
         target
@@ -1290,6 +1296,7 @@ mod tests {
             path_text(&root),
             path_text(&root),
             Some("[1234567890]".into()),
+            false,
         )
         .expect("prepare atendimento destination");
         let destination = PathBuf::from(destination);
@@ -1303,6 +1310,32 @@ mod tests {
                 .join(COLLECTION_FOLDER_NAME)
         );
         assert!(root.join("[1234567890]").is_dir());
+        assert!(!root.join("[1234567890]").join(SEND_FOLDER_NAME).exists());
+
+        fs::remove_dir_all(root).expect("remove destination test root");
+    }
+
+    #[test]
+    fn creates_envio_folder_when_enabled_for_atendimento() {
+        let root = std::env::temp_dir().join(format!("packdrive-envio-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&root).expect("create destination root");
+
+        let destination = prepare_destination(
+            path_text(&root),
+            path_text(&root),
+            Some("[1234567890]".into()),
+            true,
+        )
+        .expect("prepare atendimento destination");
+
+        assert_eq!(
+            PathBuf::from(destination),
+            fs::canonicalize(&root)
+                .expect("canonicalize destination root")
+                .join("[1234567890]")
+                .join(COLLECTION_FOLDER_NAME)
+        );
+        assert!(root.join("[1234567890]").join(SEND_FOLDER_NAME).is_dir());
 
         fs::remove_dir_all(root).expect("remove destination test root");
     }

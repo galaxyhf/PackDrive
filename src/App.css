@@ -342,8 +342,13 @@ button:disabled {
 }
 
 .content.settings-content {
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   padding-block: 18px;
+}
+
+.content.tutorials-content {
+  overflow: hidden;
 }
 
 .notice {
@@ -904,9 +909,18 @@ input::placeholder {
   font-size: 9.5px;
 }
 
-.destination-box span:last-child {
+.destination-paths {
+  display: grid;
+  gap: 3px;
+}
+
+.destination-paths code {
+  overflow-wrap: anywhere;
   color: var(--accent);
   font-family: "Cascadia Code", Consolas, monospace;
+  font-size: 9.5px;
+  line-height: 1.45;
+  white-space: normal;
 }
 
 .destination-box strong {
@@ -1244,6 +1258,324 @@ input::placeholder {
   margin: 0 auto;
 }
 
+.tutorials-layout {
+  display: grid;
+  grid-template-columns: 250px minmax(0, 1fr);
+  gap: 18px;
+  height: 100%;
+  max-width: 1150px;
+  margin: 0 auto;
+}
+
+.tutorial-systems,
+.tutorial-detail {
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.tutorial-systems {
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+}
+
+.tutorial-search {
+  width: 100%;
+}
+
+.tutorial-count {
+  padding: 10px 3px 8px;
+  color: var(--text-muted);
+  font-size: 9.5px;
+}
+
+.tutorial-systems nav {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+  overflow: auto;
+}
+
+.tutorial-systems nav button {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) 16px;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 38px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  padding: 8px 9px;
+  color: var(--text-soft);
+  background: transparent;
+  font-size: 10.5px;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    color 150ms ease,
+    background 150ms ease;
+}
+
+.tutorial-systems nav button:hover {
+  color: var(--text);
+  background: var(--surface-raised);
+}
+
+.tutorial-systems nav button.active {
+  color: var(--text);
+  background: var(--surface-hover);
+}
+
+.tutorial-systems nav button.active > svg:first-child {
+  color: var(--accent);
+}
+
+.tutorial-systems nav button > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tutorial-systems nav button > svg:last-child {
+  color: var(--text-muted);
+}
+
+.tutorial-detail {
+  display: flex;
+  flex-direction: column;
+}
+
+.tutorial-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  border-bottom: 1px solid var(--line);
+  padding: 15px 18px;
+}
+
+.tutorial-system-icon {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 9px;
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.tutorial-detail-header > div:last-child {
+  min-width: 0;
+}
+
+.tutorial-detail-header span {
+  color: var(--text-muted);
+  font-size: 9.5px;
+}
+
+.tutorial-detail-header h2 {
+  margin: 2px 0 0;
+  color: var(--text);
+  font-size: 16px;
+  letter-spacing: -0.01em;
+}
+
+.tutorial-detail-body {
+  min-height: 0;
+  overflow: auto;
+  padding: 18px;
+}
+
+.collection-requirements {
+  margin-bottom: 22px;
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  background: var(--accent-soft);
+}
+
+.collection-requirements > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--accent);
+}
+
+.collection-requirements h3,
+.tutorial-section h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.collection-requirements ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.collection-requirements li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: var(--radius-sm);
+  padding: 7px 9px;
+  color: var(--text);
+  background: var(--surface);
+  font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  font-size: 10px;
+}
+
+.collection-requirements li svg {
+  flex: 0 0 auto;
+  color: var(--accent);
+}
+
+.tutorial-section {
+  max-width: 74ch;
+  border-top: 1px solid var(--line);
+  padding: 20px 2px 2px;
+}
+
+.tutorial-section + .tutorial-section {
+  margin-top: 18px;
+}
+
+.tutorial-section p {
+  margin: 9px 0 0;
+  color: var(--text-soft);
+  font-size: 10.5px;
+  line-height: 1.65;
+}
+
+.tutorial-steps {
+  margin: 14px 0 0;
+  padding: 0;
+  counter-reset: tutorial-step;
+  list-style: none;
+}
+
+.tutorial-steps li {
+  display: grid;
+  grid-template-columns: 27px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding-bottom: 12px;
+  color: var(--text-soft);
+  font-size: 10.5px;
+  line-height: 1.55;
+  counter-increment: tutorial-step;
+}
+
+.tutorial-steps li::before {
+  display: grid;
+  width: 25px;
+  height: 25px;
+  place-items: center;
+  border-radius: 7px;
+  color: var(--accent);
+  background: var(--accent-soft);
+  font-size: 9.5px;
+  font-weight: 700;
+  content: counter(tutorial-step);
+}
+
+.tutorial-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  margin: 2px 0 15px 37px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--line);
+}
+
+.tutorial-fields > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  background: var(--sidebar);
+}
+
+.tutorial-fields dt {
+  color: var(--text-muted);
+  font-size: 9.5px;
+}
+
+.tutorial-fields dd {
+  margin: 0;
+  color: var(--text);
+  font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  font-size: 10px;
+}
+
+.tutorial-notes {
+  margin: 12px 0 0;
+  padding-left: 18px;
+  color: var(--text-soft);
+  font-size: 10.5px;
+  line-height: 1.6;
+}
+
+.tutorial-notes li + li {
+  margin-top: 7px;
+}
+
+.tutorial-external {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 14px;
+  border: 0;
+  padding: 0;
+  color: var(--accent);
+  background: transparent;
+  font-size: 10.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tutorial-external:hover {
+  text-decoration: underline;
+}
+
+.tutorial-external:focus-visible {
+  border-radius: 3px;
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+
+.tutorial-empty {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--text-muted);
+}
+
+.tutorial-empty strong {
+  margin-top: 5px;
+  color: var(--text);
+  font-size: 12px;
+}
+
+.tutorial-empty span {
+  font-size: 10.5px;
+}
+
 .history-tools {
   display: flex;
   align-items: center;
@@ -1380,7 +1712,7 @@ input::placeholder {
 
 .settings-page {
   display: flex;
-  height: 100%;
+  min-height: 100%;
   max-width: 870px;
   margin: 0 auto;
   flex-direction: column;
@@ -1948,6 +2280,33 @@ input::placeholder {
 
   .manual-panel {
     min-height: 360px;
+  }
+
+  .tutorials-layout {
+    grid-template-columns: 210px minmax(0, 1fr);
+  }
+
+  .tutorial-fields {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 680px) {
+  .content.tutorials-content {
+    overflow: auto;
+  }
+
+  .tutorials-layout {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+
+  .tutorial-systems {
+    max-height: 230px;
+  }
+
+  .tutorial-detail {
+    min-height: 520px;
   }
 }
 

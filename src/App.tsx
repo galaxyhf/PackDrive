@@ -6,6 +6,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import {
   Archive,
   ArrowLeft,
+  BookOpen,
   Check,
   CheckCircle2,
   ChevronDown,
@@ -58,11 +59,13 @@ import {
   type QuickDestinations,
   type Screen,
 } from "./types";
+import { TutorialsPage } from "./TutorialsPage";
 import "./App.css";
 
 const screenLabels: Record<Screen, string> = {
   quick: "Envio rápido",
   browse: "Navegar no Drive",
+  tutorials: "Tutoriais de coleta",
   history: "Histórico",
   settings: "Configurações",
 };
@@ -731,6 +734,7 @@ function App() {
         allowedRoot: settings.drivePath,
         parent: destinationParent,
         folderName: mode === "quick" ? `[${atendimento}]` : null,
+        createEnvioFolder: mode === "quick" && settings.createEnvioFolder,
       });
       const totalBytes = sources.reduce((sum, item) => sum + item.size, 0);
       const validation = await invoke<DestinationValidation>("validate_destination", {
@@ -1009,6 +1013,13 @@ function App() {
             Navegar no Drive
           </button>
           <button
+            className={screen === "tutorials" ? "active" : ""}
+            onClick={() => setScreen("tutorials")}
+          >
+            <BookOpen size={18} />
+            Tutoriais de coleta
+          </button>
+          <button
             className={screen === "history" ? "active" : ""}
             onClick={() => setScreen("history")}
           >
@@ -1046,6 +1057,7 @@ function App() {
             <p>
               {screen === "quick" && "Organize um atendimento e envie em poucos passos."}
               {screen === "browse" && "Escolha exatamente onde os arquivos devem ficar."}
+              {screen === "tutorials" && "Consulte o passo a passo de cada sistema para a conversão."}
               {screen === "history" && "Consulte as operações realizadas neste computador."}
               {screen === "settings" && "Defina o comportamento padrão do aplicativo."}
             </p>
@@ -1074,7 +1086,7 @@ function App() {
         <div
           className={`content ${screen === "quick" ? "quick-content" : ""} ${
             screen === "settings" ? "settings-content" : ""
-          }`}
+          } ${screen === "tutorials" ? "tutorials-content" : ""}`}
         >
           {notice && (
             <div className={`notice ${notice.type}`} role="status">
@@ -1199,9 +1211,16 @@ function App() {
                     {displayPath(quickDestinationPath || settings.drivePath) ||
                       "Google Drive não localizado"}
                   </strong>
-                  <span>
-                    {atendimento ? `[${atendimento}]/Coleta` : "[número]/Coleta"}
-                  </span>
+                  <div className="destination-paths" aria-label="Pastas que serão criadas">
+                    <code>
+                      {atendimento ? `[${atendimento}]/Coleta` : "[número]/Coleta"}
+                    </code>
+                    {settings.createEnvioFolder && (
+                      <code>
+                        {atendimento ? `[${atendimento}]/Envio` : "[número]/Envio"}
+                      </code>
+                    )}
+                  </div>
                 </div>
                 <button
                   className="button primary wide"
@@ -1426,6 +1445,8 @@ function App() {
               </aside>
             </div>
           )}
+
+          {screen === "tutorials" && <TutorialsPage />}
 
           {screen === "history" && (
             <section className="history-page">
@@ -1669,6 +1690,28 @@ function App() {
                         void saveSettings({
                           ...settings,
                           openAfterComplete: event.target.checked,
+                        })
+                      }
+                    />
+                    <span aria-hidden="true" />
+                  </label>
+                </div>
+                <div className="setting-row">
+                  <div>
+                    <label htmlFor="create-envio-folder">Criar pasta Envio</label>
+                    <span>
+                      Cria Envio ao lado de Coleta dentro da pasta do atendimento.
+                    </span>
+                  </div>
+                  <label className="switch">
+                    <input
+                      id="create-envio-folder"
+                      type="checkbox"
+                      checked={settings.createEnvioFolder}
+                      onChange={(event) =>
+                        void saveSettings({
+                          ...settings,
+                          createEnvioFolder: event.target.checked,
                         })
                       }
                     />

@@ -1,4 +1,4 @@
-export type Screen = "quick" | "browse" | "history" | "settings";
+export type Screen = "quick" | "browse" | "tutorials" | "history" | "settings";
 export type DuplicateBehavior = "rename" | "replace" | "skip" | "ask";
 
 export interface AppSettings {
@@ -6,6 +6,7 @@ export interface AppSettings {
   quickDestinationPath: string;
   duplicateBehavior: DuplicateBehavior;
   openAfterComplete: boolean;
+  createEnvioFolder: boolean;
   minimizeToTray: boolean;
   historyLimit: number;
 }
@@ -107,6 +108,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   quickDestinationPath: "",
   duplicateBehavior: "rename",
   openAfterComplete: true,
+  createEnvioFolder: false,
   minimizeToTray: false,
   historyLimit: 100,
 };
