@@ -271,7 +271,7 @@ button:disabled {
 .topbar h1 {
   margin: 0;
   color: var(--text);
-  font-size: 19px;
+  font-size: 20px;
   font-weight: 680;
   letter-spacing: -0.018em;
 }
@@ -279,7 +279,7 @@ button:disabled {
 .topbar p {
   margin: 4px 0 0;
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .header-drive {
@@ -299,7 +299,7 @@ button:disabled {
   overflow: hidden;
   max-width: 190px;
   color: var(--text-muted);
-  font-size: 10.5px;
+  font-size: 11.5px;
   text-align: right;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -313,7 +313,7 @@ button:disabled {
   padding: 6px 9px;
   color: var(--text-soft);
   background: var(--surface-raised);
-  font-size: 10.5px;
+  font-size: 11.5px;
   font-weight: 600;
 }
 
@@ -365,7 +365,7 @@ button:disabled {
   color: var(--text);
   background: var(--surface-raised);
   box-shadow: 0 5px 12px oklch(0.05 0.01 255 / 0.35);
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .notice.success svg:first-child {
@@ -433,7 +433,7 @@ button:disabled {
 
 .quick-destination-field label {
   color: var(--text-soft);
-  font-size: 10.5px;
+  font-size: 11.5px;
   font-weight: 620;
 }
 
@@ -451,7 +451,7 @@ button:disabled {
   padding: 0 38px 0 11px;
   color: var(--text);
   background: var(--sidebar);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .quick-destination-select > svg {
@@ -491,7 +491,7 @@ button:disabled {
 .settings-heading h2 {
   margin: 0;
   color: var(--text);
-  font-size: 13.5px;
+  font-size: 14.5px;
   font-weight: 650;
   letter-spacing: -0.008em;
 }
@@ -501,7 +501,7 @@ button:disabled {
 .settings-heading p {
   margin: 4px 0 0;
   color: var(--text-muted);
-  font-size: 10.5px;
+  font-size: 11.5px;
 }
 
 .ticket-input-row {
@@ -535,7 +535,7 @@ button:disabled {
 .field-with-icon input {
   height: 44px;
   padding: 0 13px 0 41px;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 580;
 }
 
@@ -564,14 +564,14 @@ input::placeholder {
 
 .folder-preview span {
   color: var(--text-muted);
-  font-size: 10.5px;
+  font-size: 11.5px;
 }
 
 .folder-preview strong {
   overflow: hidden;
   color: var(--accent);
   font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
-  font-size: 12px;
+  font-size: 13px;
   text-overflow: ellipsis;
 }
 
@@ -584,7 +584,7 @@ input::placeholder {
   padding: 8px 10px;
   color: oklch(0.86 0.07 82);
   background: var(--warning-soft);
-  font-size: 10.5px;
+  font-size: 11.5px;
 }
 
 .drop-zone {
@@ -622,14 +622,14 @@ input::placeholder {
 }
 
 .drop-zone strong {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 630;
 }
 
 .drop-zone p {
   margin: 5px 0 17px;
   color: var(--text-muted);
-  font-size: 10.5px;
+  font-size: 11.5px;
 }
 
 .drop-actions,
@@ -650,7 +650,7 @@ input::placeholder {
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   padding: 0 13px;
-  font-size: 11.5px;
+  font-size: 12.5px;
   font-weight: 620;
   cursor: pointer;
   transition:
@@ -706,7 +706,7 @@ input::placeholder {
 .button.small {
   min-height: 30px;
   padding: 0 9px;
-  font-size: 10.5px;
+  font-size: 11.5px;
 }
 
 .button.wide {
@@ -758,7 +758,7 @@ input::placeholder {
   gap: 9px;
   color: var(--accent);
   background: oklch(0.2 0.045 153 / 0.94);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 650;
 }
 
@@ -800,7 +800,7 @@ input::placeholder {
 
 .file-copy strong {
   overflow: hidden;
-  font-size: 11.5px;
+  font-size: 12.5px;
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -811,7 +811,7 @@ input::placeholder {
 .file-size {
   overflow: hidden;
   color: var(--text-muted);
-  font-size: 9.5px;
+  font-size: 10.5px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -883,12 +883,12 @@ input::placeholder {
 
 .send-summary dt {
   color: var(--text-muted);
-  font-size: 10.5px;
+  font-size: 11.5px;
 }
 
 .send-summary dd {
   margin: 0;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 620;
   text-align: right;
 }
@@ -906,7 +906,7 @@ input::placeholder {
 
 .destination-box span {
   color: var(--text-muted);
-  font-size: 9.5px;
+  font-size: 10.5px;
 }
 
 .destination-paths {
@@ -918,13 +918,13 @@ input::placeholder {
   overflow-wrap: anywhere;
   color: var(--accent);
   font-family: "Cascadia Code", Consolas, monospace;
-  font-size: 9.5px;
+  font-size: 10.5px;
   line-height: 1.45;
   white-space: normal;
 }
 
 .destination-box strong {
-  font-size: 10.5px;
+  font-size: 11.5px;
   line-height: 1.45;
   overflow-wrap: anywhere;
   white-space: normal;
@@ -980,7 +980,7 @@ input::placeholder {
   padding: 7px 9px;
   color: var(--text-muted);
   background: var(--sidebar);
-  font-size: 10.5px;
+  font-size: 11.5px;
   white-space: nowrap;
 }
 
@@ -1000,7 +1000,7 @@ input::placeholder {
   align-items: center;
   gap: 6px;
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: 11px;
   white-space: nowrap;
   cursor: pointer;
 }
@@ -1030,7 +1030,7 @@ input::placeholder {
   border-bottom: 1px solid var(--line);
   padding: 8px 14px;
   color: var(--text-muted);
-  font-size: 9px;
+  font-size: 10px;
 }
 
 .directory-row {
@@ -1042,7 +1042,7 @@ input::placeholder {
   border-bottom: 1px solid var(--line);
   color: var(--text-soft);
   background: transparent;
-  font-size: 10.5px;
+  font-size: 11.5px;
 }
 
 .directory-row:hover,
@@ -1102,7 +1102,7 @@ input::placeholder {
   justify-content: center;
   gap: 9px;
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .manual-panel {
@@ -1115,7 +1115,7 @@ input::placeholder {
   display: block;
   margin-bottom: 9px;
   color: var(--text-muted);
-  font-size: 9.5px;
+  font-size: 10.5px;
   font-weight: 620;
 }
 
@@ -1140,7 +1140,7 @@ input::placeholder {
 .selected-folder strong {
   overflow: hidden;
   color: var(--text);
-  font-size: 11.5px;
+  font-size: 12.5px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1148,7 +1148,7 @@ input::placeholder {
 .selected-folder span {
   overflow: hidden;
   color: var(--text-muted);
-  font-size: 9px;
+  font-size: 10px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1180,7 +1180,7 @@ input::placeholder {
 .manual-items span {
   overflow: hidden;
   flex: 1;
-  font-size: 10px;
+  font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1198,7 +1198,7 @@ input::placeholder {
 .manual-empty {
   margin: 0 0 10px;
   color: var(--text-muted);
-  font-size: 10.5px;
+  font-size: 11.5px;
 }
 
 .manual-pickers {
@@ -1213,7 +1213,7 @@ input::placeholder {
   border-top: 1px solid var(--line);
   padding: 14px 0 12px;
   color: var(--text-muted);
-  font-size: 10.5px;
+  font-size: 11.5px;
 }
 
 .manual-total strong {
@@ -1243,14 +1243,14 @@ input::placeholder {
 }
 
 .empty-state strong {
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .empty-state p {
   max-width: 42ch;
   margin: 5px 0 0;
   color: var(--text-muted);
-  font-size: 10.5px;
+  font-size: 11.5px;
 }
 
 .history-page {
@@ -1289,7 +1289,7 @@ input::placeholder {
 .tutorial-count {
   padding: 10px 3px 8px;
   color: var(--text-muted);
-  font-size: 9.5px;
+  font-size: 10.5px;
 }
 
 .tutorial-systems nav {
@@ -1313,7 +1313,7 @@ input::placeholder {
   padding: 8px 9px;
   color: var(--text-soft);
   background: transparent;
-  font-size: 10.5px;
+  font-size: 11.5px;
   text-align: left;
   cursor: pointer;
   transition:
@@ -1375,13 +1375,13 @@ input::placeholder {
 
 .tutorial-detail-header span {
   color: var(--text-muted);
-  font-size: 9.5px;
+  font-size: 10.5px;
 }
 
 .tutorial-detail-header h2 {
   margin: 2px 0 0;
   color: var(--text);
-  font-size: 16px;
+  font-size: 17px;
   letter-spacing: -0.01em;
 }
 
@@ -1409,7 +1409,7 @@ input::placeholder {
 .tutorial-section h3 {
   margin: 0;
   color: var(--text);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 650;
 }
 
@@ -1431,7 +1431,7 @@ input::placeholder {
   color: var(--text);
   background: var(--surface);
   font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .collection-requirements li svg {
@@ -1452,7 +1452,7 @@ input::placeholder {
 .tutorial-section p {
   margin: 9px 0 0;
   color: var(--text-soft);
-  font-size: 10.5px;
+  font-size: 11.5px;
   line-height: 1.65;
 }
 
@@ -1470,7 +1470,7 @@ input::placeholder {
   align-items: start;
   padding-bottom: 12px;
   color: var(--text-soft);
-  font-size: 10.5px;
+  font-size: 11.5px;
   line-height: 1.55;
   counter-increment: tutorial-step;
 }
@@ -1483,7 +1483,7 @@ input::placeholder {
   border-radius: 7px;
   color: var(--accent);
   background: var(--accent-soft);
-  font-size: 9.5px;
+  font-size: 10.5px;
   font-weight: 700;
   content: counter(tutorial-step);
 }
@@ -1510,21 +1510,21 @@ input::placeholder {
 
 .tutorial-fields dt {
   color: var(--text-muted);
-  font-size: 9.5px;
+  font-size: 10.5px;
 }
 
 .tutorial-fields dd {
   margin: 0;
   color: var(--text);
   font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .tutorial-notes {
   margin: 12px 0 0;
   padding-left: 18px;
   color: var(--text-soft);
-  font-size: 10.5px;
+  font-size: 11.5px;
   line-height: 1.6;
 }
 
@@ -1541,7 +1541,7 @@ input::placeholder {
   padding: 0;
   color: var(--accent);
   background: transparent;
-  font-size: 10.5px;
+  font-size: 11.5px;
   font-weight: 600;
   cursor: pointer;
 }
@@ -1569,11 +1569,11 @@ input::placeholder {
 .tutorial-empty strong {
   margin-top: 5px;
   color: var(--text);
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .tutorial-empty span {
-  font-size: 10.5px;
+  font-size: 11.5px;
 }
 
 .history-tools {
@@ -1586,7 +1586,7 @@ input::placeholder {
 
 .history-tools > span {
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .search-field {
@@ -1605,7 +1605,7 @@ input::placeholder {
 .search-field input {
   height: 38px;
   padding: 0 12px 0 36px;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .history-list {
@@ -1666,7 +1666,7 @@ input::placeholder {
 .history-main strong,
 .history-meta strong {
   overflow: hidden;
-  font-size: 10.5px;
+  font-size: 11.5px;
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1676,7 +1676,7 @@ input::placeholder {
 .history-meta span {
   overflow: hidden;
   color: var(--text-muted);
-  font-size: 9.5px;
+  font-size: 10.5px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1686,7 +1686,7 @@ input::placeholder {
   padding: 2px 6px;
   color: var(--danger);
   background: var(--danger-soft);
-  font-size: 8.5px;
+  font-size: 9.5px;
   font-weight: 600;
 }
 
@@ -1768,14 +1768,14 @@ input::placeholder {
 
 .setting-row label {
   color: var(--text);
-  font-size: 11.5px;
+  font-size: 12.5px;
   font-weight: 600;
 }
 
 .setting-row span {
   overflow: hidden;
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1795,7 +1795,7 @@ input::placeholder {
   padding: 0 30px 0 10px;
   color: var(--text-soft);
   background: var(--sidebar);
-  font-size: 10.5px;
+  font-size: 11.5px;
 }
 
 .detected-list {
@@ -1808,7 +1808,7 @@ input::placeholder {
 
 .detected-list > span {
   color: var(--text-muted);
-  font-size: 9.5px;
+  font-size: 10.5px;
   font-weight: 600;
 }
 
@@ -1839,13 +1839,13 @@ input::placeholder {
 }
 
 .detected-list strong {
-  font-size: 10.5px;
+  font-size: 11.5px;
 }
 
 .detected-list span {
   overflow: hidden;
   color: var(--text-muted);
-  font-size: 9px;
+  font-size: 10px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1875,12 +1875,12 @@ input::placeholder {
 
 .validation-banner strong {
   color: var(--text);
-  font-size: 10.5px;
+  font-size: 11.5px;
 }
 
 .validation-banner span {
   color: var(--text-muted);
-  font-size: 9.5px;
+  font-size: 10.5px;
 }
 
 .switch {
@@ -1998,7 +1998,7 @@ input::placeholder {
 
 .progress-heading span {
   color: var(--text-muted);
-  font-size: 9.5px;
+  font-size: 10.5px;
 }
 
 .progress-heading h2,
@@ -2007,13 +2007,13 @@ input::placeholder {
 .folder-dialog h2 {
   margin: 3px 0 0;
   color: var(--text);
-  font-size: 17px;
+  font-size: 18px;
   letter-spacing: -0.015em;
 }
 
 .progress-heading > strong {
   color: var(--accent);
-  font-size: 20px;
+  font-size: 21px;
 }
 
 .progress-track {
@@ -2051,14 +2051,14 @@ input::placeholder {
 
 .current-file strong {
   overflow: hidden;
-  font-size: 10.5px;
+  font-size: 11.5px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .current-file span {
   color: var(--text-muted);
-  font-size: 9.5px;
+  font-size: 10.5px;
 }
 
 .progress-metrics {
@@ -2084,11 +2084,11 @@ input::placeholder {
 
 .progress-metrics span {
   color: var(--text-muted);
-  font-size: 8.5px;
+  font-size: 9.5px;
 }
 
 .progress-metrics strong {
-  font-size: 9.5px;
+  font-size: 10.5px;
 }
 
 .conflict-dialog p,
@@ -2096,7 +2096,7 @@ input::placeholder {
 .folder-dialog p {
   margin: 7px 0 12px;
   color: var(--text-soft);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.55;
 }
 
@@ -2108,7 +2108,7 @@ input::placeholder {
   color: var(--text-muted);
   background: var(--sidebar);
   font-family: "Cascadia Code", Consolas, monospace;
-  font-size: 9px;
+  font-size: 10px;
   line-height: 1.45;
 }
 
@@ -2120,7 +2120,7 @@ input::placeholder {
   color: var(--text-muted);
   background: var(--sidebar);
   font-family: "Cascadia Code", Consolas, monospace;
-  font-size: 9px;
+  font-size: 10px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -2137,21 +2137,21 @@ input::placeholder {
   flex-direction: column;
   gap: 7px;
   color: var(--text-soft);
-  font-size: 10.5px;
+  font-size: 11.5px;
   font-weight: 600;
 }
 
 .folder-dialog input {
   height: 40px;
   padding: 0 11px;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .field-help {
   display: block;
   margin-top: 7px;
   color: var(--text-muted);
-  font-size: 9px;
+  font-size: 10px;
 }
 
 .modal-actions {
@@ -2174,7 +2174,7 @@ input::placeholder {
 }
 
 .boot-screen strong {
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .boot-screen > svg {
