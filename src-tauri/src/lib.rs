@@ -284,6 +284,37 @@ fn add_google_drive_account_roots(
     }
 }
 
+#[cfg(any(target_os = "windows", test))]
+fn add_google_drive_volume_root(
+    candidates: &mut Vec<DriveCandidate>,
+    seen: &mut HashSet<PathBuf>,
+    volume_root: &Path,
+    source: &str,
+) -> bool {
+    let has_drive_layout = [
+        "Meu Drive",
+        "My Drive",
+        "Drive compartilhado",
+        "Drives compartilhados",
+        "Drivers compartilhados",
+        "Shared drives",
+    ]
+    .iter()
+    .any(|label| volume_root.join(label).is_dir());
+
+    if has_drive_layout {
+        push_drive_candidate(
+            candidates,
+            seen,
+            volume_root.to_path_buf(),
+            "Google Drive".into(),
+            source,
+        );
+    }
+
+    has_drive_layout
+}
+
 fn find_google_drives() -> Vec<DriveCandidate> {
     let mut candidates = Vec::new();
     let mut seen = HashSet::new();
@@ -293,6 +324,10 @@ fn find_google_drives() -> Vec<DriveCandidate> {
         for letter in b'A'..=b'Z' {
             let root = PathBuf::from(format!("{}:\\", letter as char));
             if !root.exists() {
+                continue;
+            }
+            if add_google_drive_volume_root(&mut candidates, &mut seen, &root, "Unidade do Windows")
+            {
                 continue;
             }
             for label in DRIVE_FOLDER_LABELS {
@@ -1357,6 +1392,39 @@ mod tests {
         assert_eq!(candidates.len(), 1);
         assert_eq!(candidates[0].path, path_text(&account));
         assert_eq!(candidates[0].label, "Google Drive");
+
+        fs::remove_dir_all(root).expect("remove test folder");
+    }
+
+    #[test]
+    fn uses_volume_root_when_personal_and_shared_drives_are_siblings() {
+        let root = std::env::temp_dir().join(format!("packdrive-volume-test-{}", Uuid::new_v4()));
+        let personal = root.join("Meu Drive");
+        let pack = root
+            .join("Drives compartilhados")
+            .join("CONTROLE DE PROPRIEDADES DE TERCEIROS")
+            .join("IMPLANTAÇÃO")
+            .join("PACK");
+        let destination = pack.join("Cliente A");
+        fs::create_dir_all(&personal).expect("create personal drive folder");
+        fs::create_dir_all(&destination).expect("create shared PACK destination");
+
+        let mut candidates = Vec::new();
+        let mut seen = HashSet::new();
+        assert!(add_google_drive_volume_root(
+            &mut candidates,
+            &mut seen,
+            &root,
+            "Windows test",
+        ));
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].path, path_text(&root));
+
+        let choices = build_quick_destinations(&root).expect("list quick destinations");
+        assert_eq!(
+            choices.default_path,
+            path_text(&destination.canonicalize().expect("canonical destination"))
+        );
 
         fs::remove_dir_all(root).expect("remove test folder");
     }
