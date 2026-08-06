@@ -292,9 +292,38 @@ Os artefatos são produzidos dentro de:
 src-tauri/target/release/bundle/
 ```
 
-No Windows, o Tauri gera os formatos habilitados, como `.msi` e `.exe`. No macOS, gera o aplicativo `.app` e, conforme a configuração e as ferramentas disponíveis, um `.dmg`.
+O empacotamento está configurado somente para Windows e gera o instalador NSIS (`.exe`). Execute o build em uma máquina Windows ou use o workflow de release do GitHub Actions descrito abaixo.
 
-Para distribuir o aplicativo fora da máquina de desenvolvimento no macOS, configure assinatura de código e notarização da Apple. Builds locais podem ser executados sem essas credenciais.
+## Atualizações automáticas
+
+O PackDrive consulta, sem bloquear a abertura, o arquivo abaixo sempre que o aplicativo inicia:
+
+```text
+https://github.com/galaxyhf/PackDrive/releases/latest/download/latest.json
+```
+
+Quando uma versão maior está disponível, o aplicativo mostra a versão atual, a nova versão e permite escolher entre **Agora não** e **Atualizar agora**. Se a atualização for aceita, o pacote é baixado, validado pela assinatura do Tauri e instalado em modo passivo no Windows.
+
+### Configuração única do GitHub
+
+A chave privada local está em `.tauri/packdrive.key`, arquivo ignorado pelo Git. Faça uma cópia de segurança segura: sem essa chave não será possível publicar atualizações aceitas por instalações existentes.
+
+No repositório do GitHub, abra **Settings → Secrets and variables → Actions**, crie o secret `TAURI_SIGNING_PRIVATE_KEY` e cole todo o conteúdo de `.tauri/packdrive.key`. Esta chave foi criada sem senha, portanto `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` pode permanecer sem configuração.
+
+Nunca envie `.tauri/packdrive.key` ao repositório. A chave pública correspondente já está em `src-tauri/tauri.conf.json` e pode ser versionada normalmente.
+
+### Publicando uma versão
+
+1. Atualize a versão SemVer, por exemplo `0.2.0`, em `package.json`, `src-tauri/Cargo.toml` e `src-tauri/tauri.conf.json`.
+2. Execute as validações locais e envie as alterações ao GitHub.
+3. Crie e envie uma tag com a mesma versão:
+
+```bash
+git tag v0.2.0
+git push origin v0.2.0
+```
+
+O workflow `.github/workflows/release.yml` compila somente no Windows, cria o GitHub Release e publica o instalador NSIS (`.exe`), sua assinatura e o `latest.json`. O instalador de uma primeira versão com o updater deve ser instalado manualmente; depois disso, as versões seguintes são oferecidas automaticamente pelo aplicativo. O fluxo automático não gera pacotes para macOS ou Linux.
 
 ## Privacidade e segurança
 

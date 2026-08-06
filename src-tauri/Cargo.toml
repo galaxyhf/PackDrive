@@ -27,3 +27,7 @@ serde_json = "1"
 walkdir = "2"
 uuid = { version = "1", features = ["v4"] }
 fs2 = "0.4"
+tauri-plugin-process = "2"
+
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-updater = "2"

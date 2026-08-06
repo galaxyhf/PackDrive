@@ -1,8 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { getVersion } from "@tauri-apps/api/app";
+import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { open } from "@tauri-apps/plugin-dialog";
+import { relaunch } from "@tauri-apps/plugin-process";
+import { check, type Update } from "@tauri-apps/plugin-updater";
 import {
   Archive,
   ArrowLeft,
@@ -15,6 +18,7 @@ import {
   Clock3,
   Cloud,
   Copy,
+  Download,
   File,
   FilePlus2,
   Files,
@@ -78,6 +82,10 @@ const statusLabels: Record<string, string> = {
   copying: "Copiando",
   skipped: "Ignorado",
 };
+
+function isWindowsHost(): boolean {
+  return window.navigator.userAgent.toLowerCase().includes("windows");
+}
 
 function formatBytes(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
@@ -402,6 +410,13 @@ function App() {
   const [newFolderName, setNewFolderName] = useState("");
   const [historySearch, setHistorySearch] = useState("");
   const [folderExists, setFolderExists] = useState(false);
+  const [appVersion, setAppVersion] = useState("0.1.0");
+  const [availableUpdate, setAvailableUpdate] = useState<Update | null>(null);
+  const [updateStatus, setUpdateStatus] = useState<
+    "idle" | "downloading" | "installing"
+  >("idle");
+  const [updateProgress, setUpdateProgress] = useState<number | null>(null);
+  const updateCheckStarted = useRef(false);
 
   const connected = Boolean(settings.drivePath && driveValidation?.valid);
   const quickDestinationPath =
@@ -566,6 +581,40 @@ function App() {
     const timer = window.setTimeout(() => setNotice(null), 6000);
     return () => window.clearTimeout(timer);
   }, [notice]);
+
+  useEffect(() => {
+    if (!isTauri()) return;
+    void getVersion().then(setAppVersion).catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    if (
+      loading ||
+      !isTauri() ||
+      !isWindowsHost() ||
+      updateCheckStarted.current
+    ) {
+      return;
+    }
+    updateCheckStarted.current = true;
+    let disposed = false;
+
+    void check({ timeout: 15000 })
+      .then((update) => {
+        if (disposed) {
+          void update?.close();
+          return;
+        }
+        setAvailableUpdate(update);
+      })
+      .catch((error) => {
+        console.warn("Não foi possível verificar atualizações.", error);
+      });
+
+    return () => {
+      disposed = true;
+    };
+  }, [loading]);
 
   useEffect(() => {
     if (!quickDestinationPath || !atendimento) {
@@ -963,6 +1012,53 @@ function App() {
     setNotice({ type: "info", message: "Configurações locais restauradas." });
   }
 
+  function dismissUpdate() {
+    if (!availableUpdate || updateStatus !== "idle") return;
+    void availableUpdate.close();
+    setAvailableUpdate(null);
+  }
+
+  async function installAvailableUpdate() {
+    if (!availableUpdate || updateStatus !== "idle") return;
+
+    let downloadedBytes = 0;
+    let contentLength: number | undefined;
+    setUpdateStatus("downloading");
+    setUpdateProgress(null);
+
+    try {
+      await availableUpdate.downloadAndInstall(
+        (event) => {
+          if (event.event === "Started") {
+            contentLength = event.data.contentLength;
+            setUpdateProgress(contentLength ? 0 : null);
+          } else if (event.event === "Progress") {
+            downloadedBytes += event.data.chunkLength;
+            if (contentLength) {
+              setUpdateProgress(
+                Math.min(100, Math.round((downloadedBytes / contentLength) * 100)),
+              );
+            }
+          } else if (event.event === "Finished") {
+            setUpdateProgress(100);
+            setUpdateStatus("installing");
+          }
+        },
+        { timeout: 10 * 60 * 1000 },
+      );
+      await relaunch();
+    } catch (error) {
+      console.error("Falha ao instalar a atualização.", error);
+      setAvailableUpdate(null);
+      setUpdateStatus("idle");
+      setUpdateProgress(null);
+      setNotice({
+        type: "error",
+        message: "Não foi possível instalar a atualização. Tente novamente ao reabrir o app.",
+      });
+    }
+  }
+
   const filteredHistory = history.filter((entry) => {
     const query = historySearch.trim().toLowerCase();
     return (
@@ -1047,7 +1143,7 @@ function App() {
             </span>
           </div>
         </div>
-        <span className="version">PackDrive 0.1.0</span>
+        <span className="version">PackDrive {appVersion}</span>
       </aside>
 
       <main className="main-area">
@@ -1912,6 +2008,78 @@ function App() {
               >
                 <FolderPlus size={16} />
                 Criar pasta
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {availableUpdate && (
+        <div className="modal-backdrop">
+          <section
+            className="update-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="update-title"
+            aria-describedby="update-description"
+          >
+            <div className="modal-icon">
+              {updateStatus === "idle" ? (
+                <Download size={21} />
+              ) : (
+                <LoaderCircle className="spin" size={21} />
+              )}
+            </div>
+            <h2 id="update-title">Nova atualização disponível</h2>
+            <p id="update-description">
+              Uma nova versão do PackDrive está pronta para ser instalada.
+            </p>
+            <div className="update-versions">
+              <span>Versão atual</span>
+              <strong>{availableUpdate.currentVersion}</strong>
+              <span>Nova versão</span>
+              <strong>{availableUpdate.version}</strong>
+            </div>
+            {availableUpdate.body?.trim() && (
+              <p className="update-notes">{availableUpdate.body}</p>
+            )}
+            {updateStatus !== "idle" && (
+              <div className="update-download" aria-live="polite">
+                <div className="update-download-label">
+                  <span>
+                    {updateStatus === "installing"
+                      ? "Instalando atualização…"
+                      : "Baixando atualização…"}
+                  </span>
+                  <strong>
+                    {updateProgress == null ? "—" : `${updateProgress}%`}
+                  </strong>
+                </div>
+                <div className="progress-track" aria-hidden="true">
+                  <span style={{ width: `${updateProgress ?? 8}%` }} />
+                </div>
+                <small>O PackDrive será reiniciado para concluir.</small>
+              </div>
+            )}
+            <div className="modal-actions">
+              <button
+                className="button subtle"
+                disabled={updateStatus !== "idle"}
+                onClick={dismissUpdate}
+              >
+                Agora não
+              </button>
+              <button
+                className="button primary"
+                disabled={updateStatus !== "idle"}
+                onClick={() => void installAvailableUpdate()}
+              >
+                {updateStatus === "idle" ? (
+                  <Download size={16} />
+                ) : (
+                  <LoaderCircle className="spin" size={16} />
+                )}
+                {updateStatus === "idle" ? "Atualizar agora" : "Atualizando…"}
               </button>
             </div>
           </section>
