@@ -568,11 +568,11 @@ input::placeholder {
 }
 
 .folder-preview strong {
-  overflow: hidden;
+  flex: 0 0 auto;
   color: var(--accent);
   font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
   font-size: 13px;
-  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .inline-warning {
@@ -1021,7 +1021,7 @@ input::placeholder {
 
 .directory-head {
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) 80px 70px 24px 32px;
+  grid-template-columns: minmax(180px, 1fr) 80px 70px 24px 76px;
   align-items: center;
   gap: 10px;
 }
@@ -1035,7 +1035,7 @@ input::placeholder {
 
 .directory-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 42px;
+  grid-template-columns: minmax(0, 1fr) 76px;
   align-items: center;
   width: 100%;
   min-height: 50px;
@@ -1091,8 +1091,17 @@ input::placeholder {
   color: var(--text-muted);
 }
 
-.directory-delete {
-  justify-self: center;
+.directory-actions-heading {
+  text-align: center;
+}
+
+.directory-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+  gap: 4px;
+  padding-right: 6px;
 }
 
 .directory-loading {

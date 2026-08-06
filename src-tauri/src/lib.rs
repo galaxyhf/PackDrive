@@ -22,10 +22,12 @@ use uuid::Uuid;
 use walkdir::WalkDir;
 
 #[cfg(target_os = "windows")]
-use std::process::Command;
+use std::{os::windows::process::CommandExt, process::Command};
 
 const COPY_BUFFER_SIZE: usize = 1024 * 1024;
 const WINDOWS_SAFE_PATH_LENGTH: usize = 240;
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 const COLLECTION_FOLDER_NAME: &str = "Coleta";
 const SEND_FOLDER_NAME: &str = "Envio";
 const DRIVE_FOLDER_LABELS: [&str; 8] = [
@@ -343,6 +345,7 @@ fn find_google_drives() -> Vec<DriveCandidate> {
         }
 
         if let Ok(output) = Command::new("cmd")
+            .creation_flags(CREATE_NO_WINDOW)
             .args(["/C", "wmic logicaldisk get DeviceID,VolumeName /format:csv"])
             .output()
         {
@@ -1077,6 +1080,8 @@ fn run_copy(
             output
                 .sync_all()
                 .map_err(|error| format!("Falha ao finalizar o arquivo: {error}"))?;
+            drop(output);
+            drop(source);
             if destination.exists() {
                 fs::remove_file(&destination)
                     .map_err(|error| format!("Não foi possível substituir o arquivo: {error}"))?;

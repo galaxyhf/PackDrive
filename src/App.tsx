@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { downloadDir } from "@tauri-apps/api/path";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { open } from "@tauri-apps/plugin-dialog";
 import { relaunch } from "@tauri-apps/plugin-process";
@@ -298,15 +299,18 @@ function FilePicker({
 function ProgressPanel({
   progress,
   operationId,
+  direction,
   cancelling,
   onCancel,
 }: {
   progress: CopyProgress | null;
   operationId: string;
+  direction: "upload" | "download";
   cancelling: boolean;
   onCancel: () => void;
 }) {
   const percentage = Math.min(100, Math.max(0, progress?.percentage ?? 0));
+  const isDownload = direction === "download";
   return (
     <div className="modal-backdrop" role="presentation">
       <section
@@ -316,12 +320,14 @@ function ProgressPanel({
         aria-labelledby="progress-title"
       >
         <div className="progress-orbit">
-          <UploadCloud size={25} />
+          {isDownload ? <Download size={25} /> : <UploadCloud size={25} />}
         </div>
         <div className="progress-heading">
           <div>
-            <span>Operação em andamento</span>
-            <h2 id="progress-title">Enviando para o Drive</h2>
+            <span>{isDownload ? "Download em andamento" : "Operação em andamento"}</span>
+            <h2 id="progress-title">
+              {isDownload ? "Baixando do Drive" : "Enviando para o Drive"}
+            </h2>
           </div>
           <strong>{percentage.toFixed(0)}%</strong>
         </div>
@@ -337,7 +343,10 @@ function ProgressPanel({
         <div className="current-file">
           <File size={17} />
           <div>
-            <strong>{progress?.fileName || "Preparando arquivos…"}</strong>
+            <strong>
+              {progress?.fileName ||
+                (isDownload ? "Preparando download…" : "Preparando arquivos…")}
+            </strong>
             <span>
               {progress
                 ? `${formatBytes(progress.bytesCopied)} de ${formatBytes(progress.fileSize)}`
@@ -396,6 +405,9 @@ function App() {
     message: string;
   } | null>(null);
   const [operationId, setOperationId] = useState("");
+  const [operationDirection, setOperationDirection] = useState<
+    "upload" | "download"
+  >("upload");
   const [progress, setProgress] = useState<CopyProgress | null>(null);
   const [cancelling, setCancelling] = useState(false);
   const [conflict, setConflict] = useState<DuplicateConflict | null>(null);
@@ -410,7 +422,7 @@ function App() {
   const [newFolderName, setNewFolderName] = useState("");
   const [historySearch, setHistorySearch] = useState("");
   const [folderExists, setFolderExists] = useState(false);
-  const [appVersion, setAppVersion] = useState("0.1.0");
+  const [appVersion, setAppVersion] = useState("1.2.0");
   const [availableUpdate, setAvailableUpdate] = useState<Update | null>(null);
   const [updateStatus, setUpdateStatus] = useState<
     "idle" | "downloading" | "installing"
@@ -775,6 +787,7 @@ function App() {
     }
 
     const id = crypto.randomUUID();
+    setOperationDirection("upload");
     setOperationId(id);
     setProgress(null);
     setCancelling(false);
@@ -837,6 +850,89 @@ function App() {
             outcome.status === "cancelled"
               ? "Operação cancelada. Arquivos concluídos foram preservados."
               : `Operação finalizada com ${outcome.errors.length} erro(s).`,
+        });
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setNotice({ type: "error", message });
+    } finally {
+      setOperationId("");
+      setProgress(null);
+      setCancelling(false);
+    }
+  }
+
+  async function downloadDriveItem(item: DirectoryItem) {
+    if (item.isDir) {
+      setNotice({
+        type: "info",
+        message: "Selecione um arquivo para baixar. Pastas não podem ser baixadas.",
+      });
+      return;
+    }
+
+    let selected: string;
+    try {
+      selected = await downloadDir();
+    } catch (error) {
+      setNotice({
+        type: "error",
+        message: `Não foi possível localizar a pasta Downloads: ${String(error)}`,
+      });
+      return;
+    }
+
+    const id = crypto.randomUUID();
+    setOperationDirection("download");
+    setOperationId(id);
+    setProgress(null);
+    setCancelling(false);
+
+    try {
+      const [source] = await invoke<PathItem[]>("inspect_paths", {
+        paths: [item.path],
+      });
+      if (!source?.exists) {
+        throw new Error("O item selecionado não está mais disponível no Drive.");
+      }
+
+      const validation = await invoke<DestinationValidation>(
+        "validate_destination",
+        {
+          path: selected,
+          requiredBytes: source.size,
+        },
+      );
+      if (!validation.valid) throw new Error(validation.message);
+
+      const outcome = await invoke<CopyOutcome>("start_copy", {
+        request: {
+          operationId: id,
+          sources: [item.path],
+          allowedRoot: selected,
+          destination: selected,
+          duplicateBehavior: settings.duplicateBehavior,
+        },
+      });
+
+      if (outcome.status === "completed") {
+        setNotice({
+          type: "success",
+          message: `Download de ${item.name} concluído com sucesso.`,
+        });
+        if (settings.openAfterComplete) {
+          await openInFileManager(outcome.destination);
+        }
+      } else {
+        const firstError = outcome.errors[0];
+        setNotice({
+          type: outcome.status === "cancelled" ? "info" : "error",
+          message:
+            outcome.status === "cancelled"
+              ? "Download cancelado. Arquivos concluídos foram preservados."
+              : firstError
+                ? `Não foi possível baixar ${item.name}: ${firstError}`
+                : `Download finalizado com ${outcome.errors.length} erro(s).`,
         });
       }
     } catch (error) {
@@ -1403,7 +1499,7 @@ function App() {
                     <span>Tipo</span>
                     <span>Tamanho</span>
                     <span />
-                    <span />
+                    <span className="directory-actions-heading">Ações</span>
                   </div>
                   {directoryLoading ? (
                     <div className="directory-loading">
@@ -1441,16 +1537,28 @@ function App() {
                             {item.isDir && <ChevronRight size={16} />}
                           </span>
                         </button>
-                        {canDeleteDirectoryItem(item) && (
-                          <button
-                            className="icon-button danger directory-delete"
-                            aria-label={`Excluir ${item.name}`}
-                            title={`Excluir ${item.name}`}
-                            onClick={() => setItemToDelete(item)}
-                          >
-                            <Trash2 size={15} />
-                          </button>
-                        )}
+                        <div className="directory-actions">
+                          {!item.isDir && (
+                            <button
+                              className="icon-button"
+                              aria-label={`Baixar ${item.name}`}
+                              title={`Baixar ${item.name}`}
+                              onClick={() => void downloadDriveItem(item)}
+                            >
+                              <Download size={15} />
+                            </button>
+                          )}
+                          {canDeleteDirectoryItem(item) && (
+                            <button
+                              className="icon-button danger"
+                              aria-label={`Excluir ${item.name}`}
+                              title={`Excluir ${item.name}`}
+                              onClick={() => setItemToDelete(item)}
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          )}
+                        </div>
                       </div>
                     ))
                   )}
@@ -1882,6 +1990,7 @@ function App() {
         <ProgressPanel
           progress={progress}
           operationId={operationId}
+          direction={operationDirection}
           cancelling={cancelling}
           onCancel={() => void cancelTransfer()}
         />
